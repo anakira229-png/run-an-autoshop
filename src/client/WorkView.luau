@@ -14,6 +14,7 @@ local player = Players.LocalPlayer
 
 local OVERVIEW_DISTANCE = 24
 local FOCUS_DISTANCE = 10
+local STEP_DISTANCE = 15
 local INTRO_DISTANCE = 52
 local MIN_DISTANCE, MAX_DISTANCE = 6, 45
 local OVERVIEW_FOV, FOCUS_FOV = 70, 56
@@ -37,6 +38,19 @@ local WorkView = {}
 
 local function carCenter()
 	return active.car:GetPivot().Position + Vector3.new(0, 2.5, 0)
+end
+
+-- Eases the camera onto a target, orbiting to the side of the car it is on so the body isn't in the way.
+local function frameTarget(target, goalDistance)
+	focusGoal = target:IsA("BasePart") and target.Position or target:GetPivot().Position
+	distanceGoal = goalDistance
+	pitchGoal = OVERVIEW_PITCH
+	local outward = focusGoal - active.car:GetPivot().Position
+	outward = Vector3.new(outward.X, 0, outward.Z)
+	if outward.Magnitude > 0.5 then
+		local wrapped = (math.atan2(outward.X, outward.Z) - yawGoal + math.pi) % (2 * math.pi) - math.pi
+		yawGoal += wrapped
+	end
 end
 
 local function setCharacterHidden(hidden)
@@ -159,6 +173,11 @@ local function enter(work)
 	-- Start far out and ease in to the overview.
 	distance, distanceGoal = INTRO_DISTANCE, OVERVIEW_DISTANCE
 	lastStep = stepKey()
+	local job = work.kind == "job" and peek(Store.job)
+	local target = job and resolveTarget(job)
+	if target then
+		frameTarget(target, STEP_DISTANCE)
+	end
 	highlightFolder.Parent = workspace
 	RunService:BindToRenderStep("RunAutoshopWorkView", Enum.RenderPriority.Camera.Value + 1, render)
 end
@@ -210,8 +229,7 @@ local function click(position)
 	Remotes.WorkAction:FireServer(hit.Instance)
 	local target = isTarget(hit.Instance)
 	if target then
-		focusGoal = target:IsA("BasePart") and target.Position or target:GetPivot().Position
-		distanceGoal = FOCUS_DISTANCE
+		frameTarget(target, FOCUS_DISTANCE)
 	end
 end
 
@@ -260,11 +278,15 @@ Store.scope:Observer(Store.work):onChange(function()
 	end
 end)
 
--- Pull back to the overview whenever the job moves to a new step or target so the next one is visible.
+-- Frame each new step's target; steps without one (minigames) keep the current framing.
 Store.scope:Observer(Store.job):onChange(function()
 	local key = stepKey()
-	if active and lastStep and key and key ~= lastStep then
-		WorkView.overview()
+	if active and key and key ~= lastStep then
+		local job = peek(Store.job)
+		local target = active.kind == "job" and job and resolveTarget(job)
+		if target then
+			frameTarget(target, STEP_DISTANCE)
+		end
 	end
 	lastStep = key
 end)
