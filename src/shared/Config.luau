@@ -19,6 +19,12 @@ return {
 	StarMultipliers = { [3] = 1, [2] = 0.8, [1] = 0.6 },
 	CustomerDelay = 4,
 	CustomerSpeed = 28,
+	-- Test-drive seat offset from each customer car's pivot; HideDriver for roofs too low for a seated avatar.
+	CarSeats = {
+		Default = { Offset = Vector3.new(-1.3, 1.25, 0.35) },
+		Sedan = { Offset = Vector3.new(-1.3, 1.25, 0.35) },
+		SportSedan = { Offset = Vector3.new(-1.13, 1.75, -0.65), HideDriver = true },
+	},
 	CustomerColors = {
 		Color3.fromRGB(70, 110, 170),
 		Color3.fromRGB(170, 50, 45),

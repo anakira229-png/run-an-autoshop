@@ -53,6 +53,25 @@ local function decor(name, shape, size, cframe, color, material)
 	return p
 end
 
+-- Hides the player's avatar for every client (for low-roofed cars); returns a function that restores it.
+local function setCharacterHidden(player)
+	local saved = {}
+	local character = player.Character
+	for _, d in character and character:GetDescendants() or {} do
+		if d:IsA("BasePart") or d:IsA("Decal") then
+			saved[d] = d.Transparency
+			d.Transparency = 1
+		end
+	end
+	return function()
+		for d, transparency in saved do
+			if d.Parent then
+				d.Transparency = transparency
+			end
+		end
+	end
+end
+
 local function highlight(target)
 	local h = Instance.new("Highlight")
 	h.Name = "FaultHighlight"
@@ -68,9 +87,22 @@ local function addNuts(wheel, side, transparency)
 	-- side is +1 for the car's right; flip it when the wheel mesh's axle points the other way.
 	local right = wheel.Parent and wheel.Parent:IsA("Model") and wheel.Parent:GetPivot().RightVector or Vector3.xAxis
 	local axleSide = side * (wheel.CFrame.XVector:Dot(right) >= 0 and 1 or -1)
+	-- Sit the nuts just outside the rim face, sized to the wheel, so they fit any car's wheels.
+	local hub = wheel:FindFirstChild("Hub")
+	local axis = wheel.CFrame.XVector
+	local face = wheel.Size.X / 2
+	if hub and hub:IsA("BasePart") then
+		local r = hub.CFrame
+		face = (
+			math.abs(axis:Dot(r.XVector)) * hub.Size.X
+			+ math.abs(axis:Dot(r.YVector)) * hub.Size.Y
+			+ math.abs(axis:Dot(r.ZVector)) * hub.Size.Z
+		) / 2
+	end
+	local ring = 0.38 * math.min(wheel.Size.Y, wheel.Size.Z) / 2.6
 	for i = 1, 5 do
 		local a = i / 5 * math.pi * 2
-		local cf = wheel.CFrame * CFrame.new(axleSide * 0.72, math.cos(a) * 0.38, math.sin(a) * 0.38)
+		local cf = wheel.CFrame * CFrame.new(axleSide * (face + 0.08), math.cos(a) * ring, math.sin(a) * ring)
 		local nut = decor(
 			"LugNut",
 			Enum.PartType.Cylinder,
@@ -300,6 +332,7 @@ end
 local function startTestDrive(state, player)
 	local car, body = state.car, state.car.Body
 	state.phase = "TestDrive"
+	local fit = Config.CarSeats[car.Name] or Config.CarSeats.Default
 	local seat = Instance.new("VehicleSeat")
 	seat.Name = "DriverSeat"
 	seat.Size = Vector3.new(2, 0.6, 2)
@@ -309,10 +342,12 @@ local function startTestDrive(state, player)
 	seat.Torque = 0
 	seat.TurnSpeed = 0
 	seat.HeadsUpDisplay = false
-	-- Low enough that a seated avatar's head clears the roof; hips sink slightly into the cushion.
-	seat.CFrame = car:GetPivot() * CFrame.new(-1.3, 1.25, 0.35)
+	seat.CFrame = car:GetPivot() * CFrame.new(fit.Offset)
 	weld(body, seat)
 	seat.Parent = car
+	if fit.HideDriver then
+		state.hiddenDriver = setCharacterHidden(player)
+	end
 
 	local wheels = {}
 	for _, name in WHEELS do
@@ -348,6 +383,10 @@ local function startTestDrive(state, player)
 				return
 			end
 			Chassis.eject(state.chassis)
+			if state.hiddenDriver then
+				state.hiddenDriver()
+				state.hiddenDriver = nil
+			end
 			local owner = state.owner()
 			if owner then
 				Remotes.JobUpdate:FireClient(owner, nil)
@@ -438,7 +477,8 @@ local function runFlatTire(state)
 				ghost:Destroy()
 				car:PivotTo(level)
 				fitCFrame = body.CFrame * state.wheelOffset
-				local newWheel = assets.Parts.Wheel:Clone()
+				local newWheel = state.spareWheel
+				state.spareWheel = nil
 				newWheel.Name = state.wheelName
 				PartUtil.place(newWheel, fitCFrame)
 				for _, d in newWheel:GetDescendants() do
@@ -535,6 +575,14 @@ local function setupFault(state)
 		local wheel = car[WHEELS[math.random(#WHEELS)]]
 		state.wheelName = wheel.Name
 		state.wheelOffset = car.Body.CFrame:ToObjectSpace(wheel.CFrame)
+		-- A clean copy of this car's own wheel is the replacement, so it matches any model.
+		local spare = wheel:Clone()
+		for _, d in spare:GetChildren() do
+			if d:IsA("WeldConstraint") then
+				d:Destroy()
+			end
+		end
+		state.spareWheel = spare
 		state.side = wheel.Name:sub(-1) == "L" and -1 or 1
 		state.nuts = addNuts(wheel, state.side, 0)
 		local up = car:GetPivot().UpVector
@@ -628,7 +676,10 @@ end
 
 -- Clones a customer car with a random paint job and the job's fault; caller positions and parents it.
 function RepairJobs.createJob(jobType, owner, job, onFinished)
-	local car = assets.CustomerCar:Clone()
+	local pool = assets:FindFirstChild("CustomerCars")
+	local choices = pool and pool:GetChildren() or {}
+	local template = #choices > 0 and choices[math.random(#choices)] or assets.CustomerCar
+	local car = template:Clone()
 	local paint = Config.CustomerColors[math.random(#Config.CustomerColors)]
 	for _, d in car:GetDescendants() do
 		if d:IsA("BasePart") and d:GetAttribute("Paint") then
@@ -685,6 +736,13 @@ end
 
 function RepairJobs.cancel(state)
 	state.active = false
+	if state.hiddenDriver then
+		state.hiddenDriver()
+		state.hiddenDriver = nil
+	end
+	if state.spareWheel then
+		state.spareWheel:Destroy()
+	end
 	if state.chassis then
 		state.chassis.destroy()
 	end
