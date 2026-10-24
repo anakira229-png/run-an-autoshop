@@ -20,11 +20,18 @@ local MIN_DISTANCE, MAX_DISTANCE = 6, 45
 local OVERVIEW_FOV, FOCUS_FOV = 70, 56
 local MIN_PITCH, MAX_PITCH = math.rad(5), math.rad(80)
 local OVERVIEW_PITCH = math.rad(28)
+local CAMERA_RADIUS = 0.4
+local CAMERA_MARGIN = 0.6
+local MIN_CLEARANCE = 3
+local FLOOR_CLEARANCE = 1.5
+local FLOOR_PROBE_UP, FLOOR_PROBE_DOWN = 1, 30
 
 local active = nil
 local yaw, yawGoal = 0, 0
 local pitch, pitchGoal = OVERVIEW_PITCH, OVERVIEW_PITCH
 local distance, distanceGoal = OVERVIEW_DISTANCE, OVERVIEW_DISTANCE
+-- Camera distance after wall avoidance; nil until the first frame of a session.
+local clearDistance = nil
 local focus, focusGoal = Vector3.zero, Vector3.zero
 local lastStep = nil
 local rotating = false
@@ -34,7 +41,22 @@ local highlightFolder = Instance.new("Folder")
 highlightFolder.Name = "RunAutoshopWorkHighlights"
 local highlights = {}
 
+local occlusionParams = RaycastParams.new()
+occlusionParams.FilterType = Enum.RaycastFilterType.Exclude
+occlusionParams.RespectCanCollide = true
+
 local WorkView = {}
+
+-- The car, every player's character and our highlights never count as walls.
+local function occluderIgnoreList()
+	local list = { active.car, highlightFolder }
+	for _, other in Players:GetPlayers() do
+		if other.Character then
+			table.insert(list, other.Character)
+		end
+	end
+	return list
+end
 
 local function carCenter()
 	return active.car:GetPivot().Position + Vector3.new(0, 2.5, 0)
@@ -133,10 +155,28 @@ local function render(dt)
 	yaw += (yawGoal - yaw) * orbitAlpha
 	pitch += (pitchGoal - pitch) * orbitAlpha
 	local camera = workspace.CurrentCamera
-	camera.CFrame = CFrame.new(focus)
-		* CFrame.Angles(0, yaw, 0)
-		* CFrame.Angles(-pitch, 0, 0)
-		* CFrame.new(0, 0, distance)
+	local direction = (CFrame.Angles(0, yaw, 0) * CFrame.Angles(-pitch, 0, 0)).ZVector
+
+	-- Pop in instantly when a wall is behind the orbit, ease back out so edges don't jitter.
+	occlusionParams.FilterDescendantsInstances = occluderIgnoreList()
+	local hit = workspace:Spherecast(focus, CAMERA_RADIUS, direction * distance, occlusionParams)
+	local allowed = hit and math.clamp(hit.Distance - CAMERA_MARGIN, MIN_CLEARANCE, distance) or distance
+	if not clearDistance or allowed < clearDistance then
+		clearDistance = allowed
+	else
+		clearDistance += (allowed - clearDistance) * (1 - math.exp(-dt * 5))
+	end
+
+	local position = focus + direction * clearDistance
+	local floorProbe = workspace:Raycast(
+		position + Vector3.new(0, FLOOR_PROBE_UP, 0),
+		Vector3.new(0, -(FLOOR_PROBE_UP + FLOOR_PROBE_DOWN), 0),
+		occlusionParams
+	)
+	if floorProbe then
+		position = Vector3.new(position.X, math.max(position.Y, floorProbe.Position.Y + FLOOR_CLEARANCE), position.Z)
+	end
+	camera.CFrame = CFrame.lookAt(position, focus)
 	-- Closer zoom narrows the FOV for a lens-in feel.
 	local zoom = math.clamp((OVERVIEW_DISTANCE - distance) / (OVERVIEW_DISTANCE - FOCUS_DISTANCE), 0, 1)
 	camera.FieldOfView = OVERVIEW_FOV + (FOCUS_FOV - OVERVIEW_FOV) * zoom
@@ -172,6 +212,7 @@ local function enter(work)
 	focusGoal = focus
 	-- Start far out and ease in to the overview.
 	distance, distanceGoal = INTRO_DISTANCE, OVERVIEW_DISTANCE
+	clearDistance = nil
 	lastStep = stepKey()
 	local job = work.kind == "job" and peek(Store.job)
 	local target = job and resolveTarget(job)

@@ -25,6 +25,13 @@ local PART_COLORS = {
 local DONE_CARD = Color3.fromRGB(222, 250, 228)
 local PART_ORDER = { "Engine", "Transmission", "Wheel", "Battery", "Seat" }
 
+-- Layout is in scaled-root pixels (Store.uiScale), which keeps the window at least 1280x720.
+local MARGIN = 16
+local TOP_BAR = 58
+local PANEL_X, PANEL_TOP, PANEL_WIDTH = 116, 72, 360
+local RIGHT_COLUMN_WIDTH, RIGHT_COLUMN_TOP = 340, 130
+local RESULT_Y = 0.52
+
 local function formatMoney(n)
 	local s = tostring(math.floor(n))
 	while true do
@@ -46,8 +53,7 @@ local moneyScale = scope:Spring(moneyBounce, 40, 0.4)
 local function moneyPill()
 	return Kit.Panel(scope, {
 		Name = "Money",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 58),
+		LayoutOrder = 1,
 		Size = UDim2.fromOffset(210, 54),
 		Color = C.Yellow,
 		Radius = 27,
@@ -68,9 +74,8 @@ end
 local function routeBanner()
 	return Kit.Panel(scope, {
 		Name = "Route",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 122),
-		Size = UDim2.fromOffset(380, 48),
+		LayoutOrder = 2,
+		Size = UDim2.fromOffset(320, 48),
 		Color = C.Blue,
 		Radius = 24,
 		Padding = 4,
@@ -80,6 +85,7 @@ local function routeBanner()
 		Children = Kit.Label(scope, {
 			Size = UDim2.fromScale(1, 1),
 			TextSize = 24,
+			Fit = true,
 			Text = scope:Computed(function(use)
 				local route = use(Store.route)
 				if not route then
@@ -97,9 +103,9 @@ end
 local function toasts()
 	return scope:New("Frame")({
 		Name = "Toasts",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 180),
-		Size = UDim2.fromOffset(520, 200),
+		LayoutOrder = 4,
+		Size = UDim2.fromOffset(280, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 		[Children] = {
 			Kit.List(scope, 6),
@@ -123,13 +129,56 @@ local function toasts()
 	})
 end
 
+-- Money, route or dent banner and toasts stack top-center so they never overlap each other.
+local function dentCounter()
+	return Kit.Panel(scope, {
+		Name = "Dents",
+		LayoutOrder = 3,
+		Size = UDim2.fromOffset(320, 48),
+		Color = C.Orange,
+		Radius = 24,
+		Padding = 4,
+		Visible = scope:Computed(function(use)
+			return use(Store.dent) ~= nil
+		end),
+		Children = Kit.Label(scope, {
+			Size = UDim2.fromScale(1, 1),
+			TextSize = 24,
+			Fit = true,
+			Text = scope:Computed(function(use)
+				local dent = use(Store.dent)
+				return dent and string.format("🔨 %d/%d dents  •  missed %d", dent.hits, dent.required, dent.misses)
+					or ""
+			end),
+		}),
+	})
+end
+
+local function topColumn()
+	return scope:New("Frame")({
+		Name = "TopColumn",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, TOP_BAR),
+		Size = UDim2.fromOffset(320, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		[Children] = {
+			Kit.List(scope, 8),
+			moneyPill(),
+			routeBanner(),
+			dentCounter(),
+			toasts(),
+		},
+	})
+end
+
 -- Left side menu and panels ------------------------------------------------
 
 local function sideMenu()
 	return scope:New("Frame")({
 		Name = "SideMenu",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 16, 0.5, 0),
+		Position = UDim2.new(0, MARGIN, 0.5, 0),
 		Size = UDim2.fromOffset(96, 210),
 		BackgroundTransparency = 1,
 		[Children] = {
@@ -221,8 +270,8 @@ local function pips(partType)
 	end
 	return scope:New("Frame")({
 		Name = "Pips",
-		Position = UDim2.fromOffset(60, 54),
-		Size = UDim2.fromOffset(120, 12),
+		Position = UDim2.fromOffset(60, 41),
+		Size = UDim2.fromOffset(120, 10),
 		BackgroundTransparency = 1,
 		[Children] = row,
 	})
@@ -234,7 +283,7 @@ local function partCard(partType, order)
 	end)
 	return Kit.Panel(scope, {
 		LayoutOrder = order,
-		Size = UDim2.new(1, 0, 0, 80),
+		Size = UDim2.new(1, 0, 0, 68),
 		Padding = 8,
 		Radius = 14,
 		Color = scope:Computed(function(use)
@@ -259,9 +308,10 @@ local function partCard(partType, order)
 			pips(partType),
 			Kit.Label(scope, {
 				Position = UDim2.fromOffset(60, 0),
-				Size = UDim2.new(1, -180, 0, 28),
+				Size = UDim2.new(1, -176, 0, 24),
 				XAlignment = Enum.TextXAlignment.Left,
 				TextSize = 22,
+				Fit = true,
 				Color = C.Ink,
 				Stroke = false,
 				Text = scope:Computed(function(use)
@@ -269,10 +319,11 @@ local function partCard(partType, order)
 				end),
 			}),
 			Kit.Label(scope, {
-				Position = UDim2.fromOffset(60, 28),
-				Size = UDim2.new(1, -180, 0, 24),
+				Position = UDim2.fromOffset(60, 22),
+				Size = UDim2.new(1, -176, 0, 18),
 				XAlignment = Enum.TextXAlignment.Left,
 				TextSize = 16,
+				Fit = true,
 				Color = C.Muted,
 				Stroke = false,
 				Text = scope:Computed(function(use)
@@ -327,20 +378,21 @@ local function garagePanel()
 	end
 	return Kit.Panel(scope, {
 		Name = "GaragePanel",
-		Position = UDim2.new(0, 124, 0.5, -280),
-		Size = UDim2.fromOffset(380, 0),
+		Position = UDim2.fromOffset(PANEL_X, PANEL_TOP),
+		Size = UDim2.fromOffset(PANEL_WIDTH, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Visible = scope:Computed(function(use)
 			return use(Store.panel) == "garage"
 		end),
 		Children = {
-			Kit.List(scope, 8),
+			Kit.List(scope, 6),
 			Kit.Header(scope, { Text = "🔧 Garage", Color = C.Orange, Children = closeButton() }),
 			cards,
 			Kit.Label(scope, {
 				LayoutOrder = 20,
-				Size = UDim2.new(1, 0, 0, 36),
-				TextSize = 16,
+				Size = UDim2.new(1, 0, 0, 28),
+				TextSize = 15,
+				Fit = true,
 				Color = C.Muted,
 				Stroke = false,
 				Text = scope:Computed(function(use)
@@ -353,7 +405,7 @@ local function garagePanel()
 			}),
 			Kit.Button(scope, {
 				LayoutOrder = 21,
-				Size = UDim2.new(1, 0, 0, 44),
+				Size = UDim2.new(1, 0, 0, 40),
 				Color = C.Blue,
 				Text = "🚗 Reset car to pad",
 				TextSize = 20,
@@ -372,14 +424,14 @@ local function upgradesPanel()
 	end)
 	return Kit.Panel(scope, {
 		Name = "UpgradesPanel",
-		Position = UDim2.new(0, 124, 0.5, -120),
-		Size = UDim2.fromOffset(380, 0),
+		Position = UDim2.fromOffset(PANEL_X, PANEL_TOP),
+		Size = UDim2.fromOffset(PANEL_WIDTH, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Visible = scope:Computed(function(use)
 			return use(Store.panel) == "upgrades"
 		end),
 		Children = {
-			Kit.List(scope, 8),
+			Kit.List(scope, 6),
 			Kit.Header(scope, { Text = "⚡ Upgrades", Color = C.Purple, Children = closeButton() }),
 			Kit.Panel(scope, {
 				LayoutOrder = 2,
@@ -390,16 +442,17 @@ local function upgradesPanel()
 					Kit.Label(scope, { Size = UDim2.fromOffset(52, 52), TextSize = 38, Text = "🧰", Stroke = false }),
 					Kit.Label(scope, {
 						Position = UDim2.fromOffset(60, 0),
-						Size = UDim2.new(1, -180, 0, 28),
+						Size = UDim2.new(1, -176, 0, 28),
 						XAlignment = Enum.TextXAlignment.Left,
 						TextSize = 22,
+						Fit = true,
 						Color = C.Ink,
 						Stroke = false,
 						Text = info.Label,
 					}),
 					Kit.Label(scope, {
 						Position = UDim2.fromOffset(60, 28),
-						Size = UDim2.new(1, -180, 0, 44),
+						Size = UDim2.new(1, -176, 0, 44),
 						XAlignment = Enum.TextXAlignment.Left,
 						YAlignment = Enum.TextYAlignment.Top,
 						TextSize = 16,
@@ -435,9 +488,8 @@ end
 local function jobCard()
 	return Kit.Panel(scope, {
 		Name = "JobCard",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 130),
-		Size = UDim2.fromOffset(320, 0),
+		LayoutOrder = 1,
+		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Visible = scope:Computed(function(use)
 			return use(Store.job) ~= nil
@@ -487,9 +539,8 @@ end
 local function calloutCard()
 	return Kit.Panel(scope, {
 		Name = "Callout",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -16, 1, -24),
-		Size = UDim2.fromOffset(340, 0),
+		LayoutOrder = 2,
+		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Visible = scope:Computed(function(use)
 			return use(Store.offer) ~= nil or use(Store.call) ~= nil
@@ -505,7 +556,8 @@ local function calloutCard()
 			}),
 			Kit.Label(scope, {
 				LayoutOrder = 2,
-				Size = UDim2.new(1, 0, 0, 48),
+				Size = UDim2.fromScale(1, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
 				TextSize = 20,
 				Color = C.Ink,
 				Stroke = false,
@@ -554,25 +606,26 @@ local function calloutCard()
 	})
 end
 
--- Bottom: work view bar and dent counter ------------------------------------
+-- Bottom: work view bar ------------------------------------------------------
 
 local function workBar(onOverview, onLeave)
 	return Kit.Panel(scope, {
 		Name = "WorkBar",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -20),
-		Size = UDim2.fromOffset(560, 0),
+		Position = UDim2.new(0.5, 0, 1, -MARGIN),
+		Size = UDim2.fromOffset(480, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
+		Padding = 8,
 		Visible = scope:Computed(function(use)
 			return use(Store.work) ~= nil
 		end),
 		Children = {
-			Kit.List(scope, 8),
+			Kit.List(scope, 6),
 			Kit.Label(scope, {
 				LayoutOrder = 1,
 				Size = UDim2.fromScale(1, 0),
 				AutomaticSize = Enum.AutomaticSize.Y,
-				TextSize = 24,
+				TextSize = 22,
 				Color = C.Ink,
 				Stroke = false,
 				Text = scope:Computed(function(use)
@@ -585,26 +638,27 @@ local function workBar(onOverview, onLeave)
 			}),
 			Kit.Label(scope, {
 				LayoutOrder = 2,
-				Size = UDim2.new(1, 0, 0, 20),
+				Size = UDim2.new(1, 0, 0, 18),
 				TextSize = 15,
+				Fit = true,
 				Color = C.Muted,
 				Stroke = false,
 				Text = "Right-drag: rotate  •  Scroll: zoom  •  Click glowing parts",
 			}),
 			scope:New("Frame")({
 				LayoutOrder = 3,
-				Size = UDim2.new(1, 0, 0, 46),
+				Size = UDim2.new(1, 0, 0, 40),
 				BackgroundTransparency = 1,
 				[Children] = {
 					Kit.List(scope, 12, true),
 					Kit.Button(scope, {
-						Size = UDim2.fromOffset(170, 44),
+						Size = UDim2.fromOffset(170, 38),
 						Color = C.Blue,
 						Text = "🔭 Overview",
 						OnClick = onOverview,
 					}),
 					Kit.Button(scope, {
-						Size = UDim2.fromOffset(170, 44),
+						Size = UDim2.fromOffset(170, 38),
 						Color = C.Red,
 						Text = "✖ Leave",
 						OnClick = onLeave,
@@ -615,27 +669,20 @@ local function workBar(onOverview, onLeave)
 	})
 end
 
-local function dentCounter()
-	return Kit.Panel(scope, {
-		Name = "Dents",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 122),
-		Size = UDim2.fromOffset(360, 48),
-		Color = C.Orange,
-		Radius = 24,
-		Padding = 4,
-		Visible = scope:Computed(function(use)
-			return use(Store.dent) ~= nil
-		end),
-		Children = Kit.Label(scope, {
-			Size = UDim2.fromScale(1, 1),
-			TextSize = 24,
-			Text = scope:Computed(function(use)
-				local dent = use(Store.dent)
-				return dent and string.format("🔨 %d/%d dents  •  missed %d", dent.hits, dent.required, dent.misses)
-					or ""
-			end),
-		}),
+-- Right side: job tracker above the roadside call so they never overlap.
+local function rightColumn()
+	return scope:New("Frame")({
+		Name = "RightColumn",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -MARGIN, 0, RIGHT_COLUMN_TOP),
+		Size = UDim2.fromOffset(RIGHT_COLUMN_WIDTH, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		[Children] = {
+			Kit.List(scope, 10),
+			jobCard(),
+			calloutCard(),
+		},
 	})
 end
 
@@ -645,8 +692,9 @@ local resultSpring = scope:Spring(scope:Value(1), 25, 0.45)
 local function resultBanner()
 	return scope:New("Frame")({
 		Name = "Result",
+		ZIndex = 10,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.35),
+		Position = UDim2.fromScale(0.5, RESULT_Y),
 		Size = UDim2.fromOffset(460, 150),
 		BackgroundTransparency = 1,
 		Visible = scope:Computed(function(use)
@@ -667,6 +715,7 @@ local function resultBanner()
 				Position = UDim2.fromOffset(0, 84),
 				Size = UDim2.new(1, 0, 0, 56),
 				TextSize = 40,
+				Fit = true,
 				Text = scope:Computed(function(use)
 					local result = use(Store.result)
 					return result and string.format("%s fixed!  +$%d", result.label, result.payout) or ""
@@ -677,19 +726,18 @@ local function resultBanner()
 end
 
 local CONFETTI = { C.Orange, C.Green, C.Blue, C.Red, C.Purple, C.Yellow }
-local function confetti(gui)
-	local viewport = workspace.CurrentCamera.ViewportSize
+local function confetti(parent)
 	for _ = 1, 40 do
 		local piece = Instance.new("Frame")
 		piece.Size = UDim2.fromOffset(math.random(8, 14), math.random(14, 22))
 		piece.BackgroundColor3 = CONFETTI[math.random(#CONFETTI)]
 		piece.BorderSizePixel = 0
 		piece.AnchorPoint = Vector2.new(0.5, 0.5)
-		piece.Position = UDim2.fromOffset(viewport.X / 2 + math.random(-120, 120), viewport.Y * 0.35)
+		piece.Position = UDim2.new(0.5, math.random(-120, 120), RESULT_Y, 0)
 		piece.Rotation = math.random(0, 360)
-		piece.Parent = gui
-		local target =
-			UDim2.fromOffset(viewport.X / 2 + math.random(-500, 500), viewport.Y * 0.35 + math.random(150, 450))
+		piece.ZIndex = 9
+		piece.Parent = parent
+		local target = UDim2.new(0.5, math.random(-500, 500), RESULT_Y, math.random(150, 450))
 		local tween = TweenService:Create(
 			piece,
 			TweenInfo.new(1.4 + math.random() * 0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -702,10 +750,10 @@ local function confetti(gui)
 	end
 end
 
-local function moneyPopup(gui, delta)
+local function moneyPopup(parent, delta)
 	local popup = Instance.new("TextLabel")
 	popup.AnchorPoint = Vector2.new(0.5, 0)
-	popup.Position = UDim2.new(0.5, 0, 0, 112)
+	popup.Position = UDim2.new(0.5, 0, 0, TOP_BAR + 54)
 	popup.Size = UDim2.fromOffset(220, 40)
 	popup.BackgroundTransparency = 1
 	popup.Font = Kit.Font
@@ -714,8 +762,9 @@ local function moneyPopup(gui, delta)
 	popup.TextStrokeColor3 = C.Ink
 	popup.TextStrokeTransparency = 0
 	popup.Text = (delta > 0 and "+$" or "-$") .. math.abs(delta)
-	popup.Parent = gui
-	local goal = UDim2.new(0.5, 0, 0, delta > 0 and 20 or 180)
+	popup.ZIndex = 9
+	popup.Parent = parent
+	local goal = UDim2.new(0.5, 0, 0, delta > 0 and 20 or TOP_BAR + 120)
 	TweenService:Create(popup, TweenInfo.new(1.2, Enum.EasingStyle.Quad), {
 		Position = goal,
 		TextTransparency = 1,
@@ -725,25 +774,25 @@ local function moneyPopup(gui, delta)
 end
 
 function App.mount(options)
+	local root = Kit.ScaledRoot(scope, Store.uiScale, {
+		Children = {
+			topColumn(),
+			sideMenu(),
+			garagePanel(),
+			upgradesPanel(),
+			rightColumn(),
+			workBar(options.onOverview, options.onLeave),
+			resultBanner(),
+		},
+	})
 	local gui = scope:New("ScreenGui")({
 		Name = "RunAutoshopUI",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 2,
 		Parent = player:WaitForChild("PlayerGui"),
-		[Children] = {
-			moneyPill(),
-			routeBanner(),
-			dentCounter(),
-			toasts(),
-			sideMenu(),
-			garagePanel(),
-			upgradesPanel(),
-			jobCard(),
-			calloutCard(),
-			workBar(options.onOverview, options.onLeave),
-			resultBanner(),
-		},
+		[Children] = root,
 	})
 
 	local lastMoney = peek(Store.money)
@@ -752,7 +801,7 @@ function App.mount(options)
 		local delta = current - lastMoney
 		lastMoney = current
 		if delta ~= 0 then
-			moneyPopup(gui, delta)
+			moneyPopup(root, delta)
 			Effects.play(delta > 0 and "Cash" or "Coins", 0.6)
 			moneyBounce:set(1.25)
 			task.delay(0.12, function()
@@ -767,7 +816,7 @@ function App.mount(options)
 			return
 		end
 		resultSpring:setPosition(0.2)
-		confetti(gui)
+		confetti(root)
 		task.delay(2.6, function()
 			if peek(Store.result) == result then
 				Store.result:set(nil)

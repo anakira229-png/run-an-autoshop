@@ -14,7 +14,7 @@ local C = Kit.Colors
 local scope = Store.scope
 
 local SEND_INTERVAL = 0.1
-local RING_SIZE = 260
+local RING_SIZE = 240
 local TICKS = 40
 local TICK_LENGTH = 22
 local START_ANGLE = -math.pi / 2
@@ -191,42 +191,47 @@ scope:New("ScreenGui")({
 	ResetOnSpawn = false,
 	IgnoreGuiInset = true,
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	DisplayOrder = 1,
 	Enabled = scope:Computed(function(use)
 		return use(Store.spin) ~= nil
 	end),
 	Parent = player:WaitForChild("PlayerGui"),
-	[Children] = scope:New("Frame")({
-		Name = "SpinGame",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(RING_SIZE, RING_SIZE),
-		BackgroundTransparency = 1,
-		[Out("AbsolutePosition")] = ringPosition,
-		[Out("AbsoluteSize")] = ringSize,
-		[Children] = {
-			ringFrame(),
-			Kit.Label(scope, {
-				AnchorPoint = Vector2.new(0.5, 1),
-				Position = UDim2.new(0.5, 0, 0, -30),
-				Size = UDim2.fromOffset(440, 34),
-				TextSize = 28,
-				Text = scope:Computed(function(use)
-					local state = use(Store.spin)
-					return state and state.label or ""
-				end),
-			}),
-			Kit.Label(scope, {
-				AnchorPoint = Vector2.new(0.5, 1),
-				Position = UDim2.new(0.5, 0, 0, -6),
-				Size = UDim2.fromOffset(520, 22),
-				TextSize = 18,
-				Visible = scope:Computed(function(use)
-					return not use(holding)
-				end),
-				Text = "Hold left mouse and circle the cursor around the ring. Too fast slips!",
-			}),
-			statusPill(),
-		},
+	[Children] = Kit.ScaledRoot(scope, Store.uiScale, {
+		Children = scope:New("Frame")({
+			Name = "SpinGame",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(RING_SIZE, RING_SIZE),
+			BackgroundTransparency = 1,
+			[Out("AbsolutePosition")] = ringPosition,
+			[Out("AbsoluteSize")] = ringSize,
+			[Children] = {
+				ringFrame(),
+				Kit.Label(scope, {
+					AnchorPoint = Vector2.new(0.5, 1),
+					Position = UDim2.new(0.5, 0, 0, -30),
+					Size = UDim2.fromOffset(440, 34),
+					TextSize = 28,
+					Fit = true,
+					Text = scope:Computed(function(use)
+						local state = use(Store.spin)
+						return state and state.label or ""
+					end),
+				}),
+				Kit.Label(scope, {
+					AnchorPoint = Vector2.new(0.5, 1),
+					Position = UDim2.new(0.5, 0, 0, -6),
+					Size = UDim2.fromOffset(520, 22),
+					TextSize = 18,
+					Fit = true,
+					Visible = scope:Computed(function(use)
+						return not use(holding)
+					end),
+					Text = "Hold left mouse and circle the cursor around the ring. Too fast slips!",
+				}),
+				statusPill(),
+			},
+		}),
 	}),
 })
 

@@ -43,9 +43,14 @@ function Kit.Padding(scope, px)
 	})
 end
 
--- Chunky outlined text, the core of the simulator look.
+-- Chunky outlined text, the core of the simulator look. `Fit` shrinks long text to the box instead of overflowing it.
 function Kit.Label(scope, props)
 	return scope:New("TextLabel")({
+		TextScaled = props.Fit,
+		[Children] = props.Fit and scope:New("UITextSizeConstraint")({
+			MaxTextSize = props.TextSize or 20,
+			MinTextSize = 10,
+		}) or nil,
 		Name = props.Name,
 		AnchorPoint = props.AnchorPoint,
 		Position = props.Position,
@@ -153,7 +158,25 @@ function Kit.Header(scope, props)
 				Text = props.Text,
 				TextSize = props.TextSize or 24,
 				XAlignment = props.XAlignment,
+				Fit = true,
 			}),
+			props.Children,
+		},
+	})
+end
+
+-- Full-screen layer whose contents are scaled by `uiScale` (a state) while still filling the whole window.
+function Kit.ScaledRoot(scope, uiScale, props)
+	return scope:New("Frame")({
+		Name = props.Name or "Root",
+		BackgroundTransparency = 1,
+		Size = scope:Computed(function(use)
+			local inverse = 1 / use(uiScale)
+			return UDim2.fromScale(inverse, inverse)
+		end),
+		Visible = props.Visible,
+		[Children] = {
+			scope:New("UIScale")({ Scale = uiScale }),
 			props.Children,
 		},
 	})

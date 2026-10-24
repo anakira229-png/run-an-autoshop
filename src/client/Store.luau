@@ -9,6 +9,10 @@ local player = Players.LocalPlayer
 local scope = Fusion.scoped(Fusion)
 local peek = Fusion.peek
 
+-- HUDs are laid out for at least 1280x720 and scaled to fit the real window.
+local REFERENCE_WIDTH, REFERENCE_HEIGHT = 1280, 720
+local MIN_UI_SCALE, MAX_UI_SCALE = 0.7, 1.75
+
 -- Client-side view state; the server stays authoritative for everything here.
 local Store = {
 	scope = scope,
@@ -26,7 +30,29 @@ local Store = {
 	spin = scope:Value(nil),
 	spinActive = scope:Value(false),
 	clock = scope:Value(os.clock()),
+	uiScale = scope:Value(1),
 }
+
+local viewportConnection = nil
+local function trackViewport()
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	if viewportConnection then
+		viewportConnection:Disconnect()
+	end
+	local function update()
+		local size = camera.ViewportSize
+		Store.uiScale:set(
+			math.clamp(math.min(size.X / REFERENCE_WIDTH, size.Y / REFERENCE_HEIGHT), MIN_UI_SCALE, MAX_UI_SCALE)
+		)
+	end
+	viewportConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(update)
+	update()
+end
+trackViewport()
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(trackViewport)
 
 local toastId = 0
 function Store.toast(text, color)

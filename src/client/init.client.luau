@@ -7,6 +7,7 @@ require(script.UI.App).mount({
 })
 require(script.SpinGame)
 require(script.CarAudio)
+require(script.DrivingHud)
 require(script.Beacons)
 
 local player = Players.LocalPlayer
