@@ -1,0 +1,23 @@
+{
+  "name": "RunAutoshop",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "RunAutoshop": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "RunAutoshop": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "RunAutoshop": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}

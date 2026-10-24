@@ -6,9 +6,9 @@ The game favors quick, satisfying arcade interactions over detailed mechanical s
 
 ## Project Status
 
-Concept and development handoff only. No game code, Studio place, Rojo configuration, or automated gameplay tests have been added to this repository.
+First playable implemented and partly playtested in Studio. See the [game brief](docs/GAME_BRIEF.md) for what has and hasn't been verified.
 
-- [Game brief](docs/GAME_BRIEF.md): confirmed direction, proposed first playable, open decisions, and next steps.
+- [Game brief](docs/GAME_BRIEF.md): agreed scope, technical state, verification, and next steps.
 - [Copilot instructions](.github/copilot-instructions.md): project context for future chat sessions.
 - [GitHub repository](https://github.com/anakira229-png/run-an-autoshop): public source and version history.
 
@@ -27,6 +27,21 @@ then agree on the smallest playable prototype before implementation.
 ## Gameplay Loop
 
 Take a repair job, fix the customer car, earn money, improve your shop and personal car, then drive around the city and return for more jobs. Expansion ideas and exact progression are not yet approved scope.
+
+## Toolchain
+
+[Rokit](https://github.com/rojo-rbx/rokit) installs the tool versions pinned in `rokit.toml` (Rojo, StyLua, Selene).
+
+```powershell
+rokit install                  # once per machine
+rojo plugin install            # once per machine; restart Studio afterward
+rojo serve                     # then Plugins > Rojo > Connect in Studio
+stylua src tools               # format
+selene src                     # lint
+rojo build -o .private/build-check.rbxl   # build check
+```
+
+Rojo writes only to `ReplicatedStorage.RunAutoshop`, `ServerScriptService.RunAutoshop`, and `StarterPlayerScripts.RunAutoshop`. The map and car templates live in the Studio place. To rebuild them, run [tools/BuildMap.luau](tools/BuildMap.luau) in the Studio command bar.
 
 ## Version Control
 
@@ -48,4 +63,4 @@ git commit -m "Describe the change"
 git push
 ```
 
-Test gameplay changes in Roblox Studio before committing. See the game brief for the next implementation steps; there are no game build or test commands yet.
+Test gameplay changes in Roblox Studio before committing. Run the format and lint checks above before each commit.
