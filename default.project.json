@@ -5,11 +5,19 @@
     "ReplicatedStorage": {
       "RunAutoshop": {
         "$path": "src/shared"
+      },
+      "Packages": {
+        "$path": "Packages"
       }
     },
     "ServerScriptService": {
       "RunAutoshop": {
         "$path": "src/server"
+      }
+    },
+    "ServerStorage": {
+      "RunAutoshopTools": {
+        "$path": "tools"
       }
     },
     "StarterPlayer": {

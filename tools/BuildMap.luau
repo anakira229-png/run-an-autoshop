@@ -1,7 +1,11 @@
--- Run in Studio edit mode (command bar or MCP) to rebuild the placeholder map and car templates.
+-- Synced by Rojo to ServerStorage.RunAutoshopTools. Run in edit mode with:
+-- require(game.ServerStorage.RunAutoshopTools.BuildMap:Clone())()
 -- Replaces Workspace.RunAutoshopMap and ServerStorage.RunAutoshopAssets, and restyles Lighting and the Baseplate.
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
+
+local PartUtil = require(ReplicatedStorage.RunAutoshop.PartUtil)
 
 local PLOT_POSITIONS = {
 	CFrame.new(-60, 0, -60),
@@ -175,7 +179,7 @@ local function buildCustomerCar(parent, parts)
 	do
 		local w = parts.Wheel:Clone()
 		w.Name = name
-		w.CFrame = CFrame.new(pos)
+		PartUtil.place(w, CFrame.new(pos))
 		w.Parent = model
 	end
 	for _, d in model:GetDescendants() do
@@ -314,7 +318,7 @@ local function buildPlot(parent, index, pivot)
 		if item:IsA("VehicleSeat") then
 			item.Disabled = true
 		end
-		item.CFrame = at(21.5 + (i - 1) * 3.6, 3.3 + item.Size.Y / 2, 34)
+		PartUtil.place(item, at(21.5 + (i - 1) * 3.6, 3.3 + item.Size.Y / 2, 34))
 		item.Parent = items
 	end
 
@@ -673,33 +677,34 @@ local function setupLighting()
 	end
 end
 
-local old = workspace:FindFirstChild("RunAutoshopMap")
-if old then
-	old:Destroy()
-end
-local oldAssets = ServerStorage:FindFirstChild("RunAutoshopAssets")
-if oldAssets then
-	oldAssets:Destroy()
-end
+return function()
+	local old = workspace:FindFirstChild("RunAutoshopMap")
+	if old then
+		old:Destroy()
+	end
+	local oldAssets = ServerStorage:FindFirstChild("RunAutoshopAssets")
+	if oldAssets then
+		oldAssets:Destroy()
+	end
 
-local assets = Instance.new("Folder")
-assets.Name = "RunAutoshopAssets"
-assets.Parent = ServerStorage
-local parts = buildPartTemplates(assets)
-buildCustomerCar(assets, parts)
-buildPersonalChassis(assets, parts)
+	local assets = Instance.new("Folder")
+	assets.Name = "RunAutoshopAssets"
+	assets.Parent = ServerStorage
+	local parts = buildPartTemplates(assets)
+	buildCustomerCar(assets, parts)
+	buildPersonalChassis(assets, parts)
 
-local map = Instance.new("Folder")
-map.Name = "RunAutoshopMap"
-local plots = Instance.new("Folder")
-plots.Name = "Plots"
-plots.Parent = map
-for i, pivot in PLOT_POSITIONS do
-	buildPlot(plots, i, pivot)
+	local map = Instance.new("Folder")
+	map.Name = "RunAutoshopMap"
+	local plots = Instance.new("Folder")
+	plots.Name = "Plots"
+	plots.Parent = map
+	for i, pivot in PLOT_POSITIONS do
+		buildPlot(plots, i, pivot)
+	end
+	buildRoads(map)
+	buildEnvironment(map)
+	map.Parent = workspace
+	setupLighting()
+	return "Map built: " .. #map:GetDescendants() .. " instances"
 end
-buildRoads(map)
-buildEnvironment(map)
-map.Parent = workspace
-setupLighting()
-
-return "Map built"

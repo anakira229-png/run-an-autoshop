@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local Config = require(ReplicatedStorage.RunAutoshop.Config)
+local PartUtil = require(ReplicatedStorage.RunAutoshop.PartUtil)
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
 local Chassis = require(script.Parent.Chassis)
 local PlayerData = require(script.Parent.PlayerData)
@@ -66,7 +67,7 @@ local function installVisual(model, slotName)
 	local partType = slot:GetAttribute("PartType")
 	local part = assets.Parts[partType]:Clone()
 	part.Name = slotName
-	part.CFrame = slot.CFrame
+	PartUtil.place(part, slot.CFrame)
 	part.Anchored = false
 	if partType ~= "Wheel" then
 		part.CanCollide = false

@@ -4,6 +4,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.RunAutoshop.Config)
+local PartUtil = require(ReplicatedStorage.RunAutoshop.PartUtil)
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
 local Sounds = require(ReplicatedStorage.RunAutoshop.Sounds)
 local Chassis = require(script.Parent.Chassis)
@@ -382,7 +383,7 @@ local function runFlatTire(state)
 				fitCFrame = body.CFrame * state.wheelOffset
 				local newWheel = assets.Parts.Wheel:Clone()
 				newWheel.Name = state.wheelName
-				newWheel.CFrame = fitCFrame
+				PartUtil.place(newWheel, fitCFrame)
 				newWheel.Anchored = false
 				newWheel.CanCollide = false
 				weld(body, newWheel)
