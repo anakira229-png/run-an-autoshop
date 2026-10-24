@@ -2,10 +2,74 @@
 -- require(game.ServerStorage.RunAutoshopTools.BuildAssets:Clone())()
 -- Replaces ServerStorage.RunAutoshopAssets (part templates, customer car, personal chassis).
 -- Run before BuildMap, which copies part templates onto the shop shelves.
+-- Uses meshes from ServerStorage.RunAutoshopMeshes (see ImportPack and ImportCar) when present, else blocks.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local PartUtil = require(ReplicatedStorage.RunAutoshop.PartUtil)
+
+local TRIM_LOOK = { Color3.fromRGB(40, 40, 45), Enum.Material.SmoothPlastic }
+
+-- Looks for parts-kit meshes, keyed "<Kit>.<Mesh>"; kit root meshes take the template's own look.
+local KIT_LOOKS = {
+	["Engine.ValveCover"] = { Color3.fromRGB(205, 205, 212), Enum.Material.Metal },
+	["Engine.Intake"] = { Color3.fromRGB(175, 178, 185), Enum.Material.Metal },
+	["Engine.Exhaust"] = { Color3.fromRGB(110, 90, 75), Enum.Material.CorrodedMetal },
+	["Engine.Pulleys"] = { Color3.fromRGB(30, 30, 32), Enum.Material.SmoothPlastic },
+	["Transmission.Pan"] = { Color3.fromRGB(70, 68, 66), Enum.Material.Metal },
+	["Transmission.Yoke"] = { Color3.fromRGB(190, 190, 195), Enum.Material.Metal },
+	["Battery.TerminalPos"] = { Color3.fromRGB(200, 30, 30), Enum.Material.SmoothPlastic },
+	["Battery.TerminalNeg"] = { Color3.fromRGB(40, 40, 45), Enum.Material.SmoothPlastic },
+	["Battery.Label"] = { Color3.fromRGB(240, 190, 40), Enum.Material.SmoothPlastic },
+	["Seat.Cushion"] = { Color3.fromRGB(140, 30, 30), Enum.Material.Fabric },
+	["Seat.Back"] = { Color3.fromRGB(140, 30, 30), Enum.Material.Fabric },
+	["Wheel.Tire"] = { Color3.fromRGB(25, 25, 25), Enum.Material.SmoothPlastic },
+	["Wheel.Hub"] = { Color3.fromRGB(190, 190, 195), Enum.Material.Metal },
+}
+
+local function meshSource(name)
+	local meshes = ServerStorage:FindFirstChild("RunAutoshopMeshes")
+	return meshes and meshes:FindFirstChild(name)
+end
+
+-- A kit imported by ImportPack: a Model whose PrimaryPart is the root mesh.
+local function meshKit(name)
+	local kit = meshSource(name)
+	return kit and kit:IsA("Model") and kit.PrimaryPart and kit or nil
+end
+
+local function weldTo(root, p)
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = root
+	w.Part1 = p
+	w.Parent = p
+end
+
+-- Makes p a welded, non-colliding visual child of root. The weld lives in p so root's own welds stay findable.
+local function attachVisual(root, p)
+	p.Anchored = false
+	p.CanCollide = false
+	p.CanTouch = false
+	p.Massless = true
+	weldTo(root, p)
+	p.Parent = root
+end
+
+-- Copies the kit's meshes onto root as visual children, laid out relative to the kit's root mesh.
+local function addKitMeshes(root, kit, skipRoot)
+	local ref = kit.PrimaryPart
+	for _, mesh in kit:GetChildren() do
+		if mesh:IsA("BasePart") and not (skipRoot and mesh == ref) then
+			local copy = mesh:Clone()
+			copy:ClearAllChildren()
+			copy.CFrame = root.CFrame * ref.CFrame:ToObjectSpace(mesh.CFrame)
+			local look = KIT_LOOKS[kit.Name .. "." .. mesh.Name] or TRIM_LOOK
+			copy.Color = look[1]
+			copy.Material = look[2]
+			attachVisual(root, copy)
+		end
+	end
+end
 
 local function part(parent, name, size, cframe, color, material, props)
 	local p = Instance.new("Part")
@@ -39,18 +103,37 @@ local function weldAll(model, root)
 end
 
 -- Part templates, shared by the parts shelf, customer cars, and the personal car.
+-- Engine, Transmission, and Battery use the kit's root mesh as the part; its size matches the block fallback.
+local function rootPart(folder, name, size, color, blockMaterial)
+	local kit = meshKit(name)
+	local p
+	if kit then
+		p = kit.PrimaryPart:Clone()
+		p:ClearAllChildren()
+		p.Name = name
+		p.CFrame = CFrame.new()
+		p.Color = color
+		p.Material = Enum.Material.Metal
+		p.Anchored = true
+		p.Parent = folder
+		addKitMeshes(p, kit, true)
+	else
+		p = part(folder, name, size, CFrame.new(), color, blockMaterial)
+	end
+	p:SetAttribute("PartType", name)
+	return p
+end
+
 local function buildPartTemplates(parent)
 	local folder = Instance.new("Folder")
 	folder.Name = "Parts"
 	local metal = Enum.Material.DiamondPlate
 
-	local engine = part(folder, "Engine", Vector3.new(2.6, 1.4, 2.4), CFrame.new(), Color3.fromRGB(90, 95, 105), metal)
-	engine:SetAttribute("PartType", "Engine")
-	local trans =
-		part(folder, "Transmission", Vector3.new(1.6, 1, 2), CFrame.new(), Color3.fromRGB(120, 110, 95), metal)
-	trans:SetAttribute("PartType", "Transmission")
-	local battery = part(folder, "Battery", Vector3.new(1.2, 1, 1), CFrame.new(), Color3.fromRGB(30, 30, 35))
-	battery:SetAttribute("PartType", "Battery")
+	rootPart(folder, "Engine", Vector3.new(2.6, 1.4, 2.4), Color3.fromRGB(90, 95, 105), metal)
+	rootPart(folder, "Transmission", Vector3.new(1.6, 1, 2), Color3.fromRGB(120, 110, 95), metal)
+	local battery =
+		rootPart(folder, "Battery", Vector3.new(1.2, 1, 1), Color3.fromRGB(30, 30, 35), Enum.Material.SmoothPlastic)
+	battery.Material = Enum.Material.SmoothPlastic
 
 	local seat = Instance.new("VehicleSeat")
 	seat.Name = "Seat"
@@ -64,6 +147,12 @@ local function buildPartTemplates(parent)
 	seat.HeadsUpDisplay = false
 	seat:SetAttribute("PartType", "Seat")
 	seat.Parent = folder
+	local seatKit = meshKit("Seat")
+	if seatKit then
+		seat.CFrame = CFrame.new()
+		seat.Transparency = 1
+		addKitMeshes(seat, seatKit, false)
+	end
 
 	local wheel = part(
 		folder,
@@ -78,6 +167,13 @@ local function buildPartTemplates(parent)
 		}
 	)
 	wheel:SetAttribute("PartType", "Wheel")
+	-- The cylinder stays the physics and click root; the kit's tire mesh encloses it and its hub covers the ends.
+	local wheelKit = meshKit("Wheel")
+	if wheelKit then
+		addKitMeshes(wheel, wheelKit, false)
+		folder.Parent = parent
+		return folder
+	end
 	local hub = part(
 		wheel,
 		"Hub",
@@ -102,6 +198,7 @@ end
 
 local MESH_PAINT = {
 	Body = true,
+	Cabin = true,
 	Roof = true,
 	Panel_Hood = true,
 	Panel_Left = true,
@@ -112,19 +209,45 @@ local MESH_PAINT = {
 
 -- Solid looks per imported part name; anything unlisted gets the trim look.
 local MESH_LOOKS = {
-	Cabin = { Color3.fromRGB(45, 55, 65), Enum.Material.Glass, 0.15 },
+	Glass = { Color3.fromRGB(40, 55, 70), Enum.Material.Glass, 0.35 },
+	Interior = { Color3.fromRGB(55, 55, 60), Enum.Material.Fabric },
 	Headlight = { Color3.fromRGB(255, 245, 210), Enum.Material.Neon },
 	Taillight = { Color3.fromRGB(200, 20, 20), Enum.Material.Neon },
 	Tire = { Color3.fromRGB(25, 25, 25), Enum.Material.SmoothPlastic },
 	Hub = { Color3.fromRGB(190, 190, 195), Enum.Material.Metal },
+	BumperFront = { Color3.fromRGB(50, 50, 55), Enum.Material.SmoothPlastic },
+	BumperRear = { Color3.fromRGB(50, 50, 55), Enum.Material.SmoothPlastic },
+	Plate = { Color3.fromRGB(235, 235, 230), Enum.Material.SmoothPlastic },
+	Exhaust = { Color3.fromRGB(190, 190, 195), Enum.Material.Metal },
+	EngineBlock = { Color3.fromRGB(95, 100, 110), Enum.Material.Metal },
+	EngineCover = { Color3.fromRGB(200, 50, 40), Enum.Material.SmoothPlastic },
+	OilCap = { Color3.fromRGB(240, 190, 40), Enum.Material.SmoothPlastic },
+	Battery = { Color3.fromRGB(30, 30, 35), Enum.Material.SmoothPlastic },
+	Reservoir = { Color3.fromRGB(235, 235, 230), Enum.Material.SmoothPlastic },
 }
-local TRIM_LOOK = { Color3.fromRGB(40, 40, 45), Enum.Material.SmoothPlastic }
 local DEFAULT_PAINT = Color3.fromRGB(70, 110, 170)
+local WHEEL_NAMES = { "Wheel_FL", "Wheel_FR", "Wheel_RL", "Wheel_RR" }
+
+-- Replaces an imported tire mesh with a cylinder physics root (template size) that carries the tire and hub meshes.
+local function meshWheel(model, tire, template)
+	local hub = tire:FindFirstChild("Hub")
+	local wheel =
+		part(model, tire.Name, template.Size, CFrame.new(tire.Position), MESH_LOOKS.Tire[1], MESH_LOOKS.Tire[2], {
+			Shape = Enum.PartType.Cylinder,
+			CustomPhysicalProperties = template.CustomPhysicalProperties,
+			CanCollide = false,
+		})
+	tire.Name = "Tire"
+	attachVisual(wheel, tire)
+	if hub then
+		attachVisual(wheel, hub)
+	end
+	return wheel
+end
 
 -- Customer car from ServerStorage.RunAutoshopMeshes.<name> (see ImportCar), or nil if not imported.
 local function buildMeshCustomerCar(parent, parts, meshName)
-	local meshes = ServerStorage:FindFirstChild("RunAutoshopMeshes")
-	local source = meshes and meshes:FindFirstChild(meshName)
+	local source = meshSource(meshName)
 	if not source then
 		return nil
 	end
@@ -150,19 +273,17 @@ local function buildMeshCustomerCar(parent, parts, meshName)
 			d.Anchored = true
 		end
 	end
-	for _, name in { "Wheel_FL", "Wheel_FR", "Wheel_RL", "Wheel_RR" } do
-		local wheel = model[name]
-		wheel.CustomPhysicalProperties = parts.Wheel.CustomPhysicalProperties
-		local hub = wheel:FindFirstChild("Hub")
-		if hub then
-			hub.Anchored = false
-			hub.CanCollide = false
-			hub.Massless = true
-			local weld = Instance.new("WeldConstraint")
-			weld.Part0 = wheel
-			weld.Part1 = hub
-			weld.Parent = hub
-		end
+	for _, name in WHEEL_NAMES do
+		meshWheel(model, model[name], parts.Wheel)
+	end
+	-- The bay battery becomes the shelf template so the battery swap replaces it in place.
+	local battery = model:FindFirstChild("Battery")
+	if battery then
+		local swap = parts.Battery:Clone()
+		PartUtil.place(swap, CFrame.new(battery.Position))
+		swap.CanCollide = false
+		battery:Destroy()
+		swap.Parent = model
 	end
 	model.PrimaryPart = body
 	model.WorldPivot = CFrame.new()
