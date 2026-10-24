@@ -1,7 +1,7 @@
 -- Synced by Rojo to ServerStorage.RunAutoshopTools. Owned by the Art agent. Run in edit mode with:
 -- require(game.ServerStorage.RunAutoshopTools.BuildAssets:Clone())()
--- Replaces ServerStorage.RunAutoshopAssets (part templates, customer car, personal chassis).
--- Run before BuildMap, which copies part templates onto the shop shelves.
+-- Replaces ServerStorage.RunAutoshopAssets (part templates, CustomerCar (the Sedan), CustomerCars.<Name> for every
+-- imported car, personal chassis). Run before BuildMap, which copies part templates onto the shop shelves.
 -- Uses meshes from ServerStorage.RunAutoshopMeshes (see ImportPack and ImportCar) when present, else blocks.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
@@ -227,16 +227,42 @@ local MESH_LOOKS = {
 }
 local DEFAULT_PAINT = Color3.fromRGB(70, 110, 170)
 local WHEEL_NAMES = { "Wheel_FL", "Wheel_FR", "Wheel_RL", "Wheel_RR" }
+-- Customer car contract parts; any RunAutoshopMeshes model with all of them gets a CustomerCars template.
+local CAR_PARTS = {
+	"Body",
+	"Cabin",
+	"Roof",
+	"Panel_Hood",
+	"Panel_Left",
+	"Panel_Right",
+	"Wheel_FL",
+	"Wheel_FR",
+	"Wheel_RL",
+	"Wheel_RR",
+}
 
--- Replaces an imported tire mesh with a cylinder physics root (template size) that carries the tire and hub meshes.
+-- Replaces an imported tire mesh with a cylinder physics root that carries the tire and hub meshes. A tire that
+-- encloses the template cylinder keeps the template size; a smaller one gets an invisible root of its own size so
+-- the cylinder neither pokes out of the tire nor covers a recessed rim.
 local function meshWheel(model, tire, template)
 	local hub = tire:FindFirstChild("Hub")
-	local wheel =
-		part(model, tire.Name, template.Size, CFrame.new(tire.Position), MESH_LOOKS.Tire[1], MESH_LOOKS.Tire[2], {
+	local encloses = tire.Size.X >= template.Size.X
+		and tire.Size.Y >= template.Size.Y
+		and tire.Size.Z >= template.Size.Z
+	local wheel = part(
+		model,
+		tire.Name,
+		encloses and template.Size or tire.Size,
+		CFrame.new(tire.Position),
+		MESH_LOOKS.Tire[1],
+		MESH_LOOKS.Tire[2],
+		{
 			Shape = Enum.PartType.Cylinder,
 			CustomPhysicalProperties = template.CustomPhysicalProperties,
 			CanCollide = false,
-		})
+			Transparency = encloses and 0 or 1,
+		}
+	)
 	tire.Name = "Tire"
 	attachVisual(wheel, tire)
 	if hub then
@@ -245,14 +271,10 @@ local function meshWheel(model, tire, template)
 	return wheel
 end
 
--- Customer car from ServerStorage.RunAutoshopMeshes.<name> (see ImportCar), or nil if not imported.
-local function buildMeshCustomerCar(parent, parts, meshName)
-	local source = meshSource(meshName)
-	if not source then
-		return nil
-	end
+-- Customer car template from a ServerStorage.RunAutoshopMeshes car (see ImportCar).
+local function buildMeshCustomerCar(parent, parts, source, carName)
 	local model = source:Clone()
-	model.Name = "CustomerCar"
+	model.Name = carName
 	local body = model.Body
 	for _, d in model:GetDescendants() do
 		if d:IsA("SurfaceAppearance") then
@@ -294,7 +316,9 @@ local function buildMeshCustomerCar(parent, parts, meshName)
 end
 
 local function buildCustomerCar(parent, parts)
-	if buildMeshCustomerCar(parent, parts, "Sedan") then
+	local sedan = meshSource("Sedan")
+	if sedan then
+		buildMeshCustomerCar(parent, parts, sedan, "CustomerCar")
 		return
 	end
 	local model = Instance.new("Model")
@@ -371,6 +395,34 @@ local function buildCustomerCar(parent, parts)
 	model.Parent = parent
 end
 
+local function isCar(source)
+	if not source:IsA("Model") then
+		return false
+	end
+	for _, name in CAR_PARTS do
+		if not source:FindFirstChild(name) then
+			return false
+		end
+	end
+	return true
+end
+
+-- CustomerCars.<Name> for every imported car; returns their names.
+local function buildCustomerCars(parent, parts)
+	local folder = Instance.new("Folder")
+	folder.Name = "CustomerCars"
+	local names = {}
+	local meshes = ServerStorage:FindFirstChild("RunAutoshopMeshes")
+	for _, source in meshes and meshes:GetChildren() or {} do
+		if isCar(source) then
+			buildMeshCustomerCar(folder, parts, source, source.Name)
+			table.insert(names, source.Name)
+		end
+	end
+	folder.Parent = parent
+	return names
+end
+
 local SLOTS = {
 	{ "Engine", "Engine", Vector3.new(0, 2.9, -3.4) },
 	{ "Transmission", "Transmission", Vector3.new(0, 2.7, -0.8) },
@@ -428,7 +480,12 @@ return function()
 	assets.Name = "RunAutoshopAssets"
 	local parts = buildPartTemplates(assets)
 	buildCustomerCar(assets, parts)
+	local cars = buildCustomerCars(assets, parts)
 	buildPersonalChassis(assets, parts)
 	assets.Parent = ServerStorage
-	return "Assets built: " .. #assets:GetDescendants() .. " instances"
+	return string.format(
+		"Assets built: %d instances; CustomerCars: %s",
+		#assets:GetDescendants(),
+		#cars > 0 and table.concat(cars, ", ") or "none"
+	)
 end

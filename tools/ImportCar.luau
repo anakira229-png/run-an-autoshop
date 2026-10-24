@@ -1,9 +1,10 @@
 -- Synced by Rojo to ServerStorage.RunAutoshopTools. Owned by the Art agent. After importing an FBX with Studio's
 -- Import 3D (File dimensions: Studs), run in Edit mode:
--- require(game.ServerStorage.RunAutoshopTools.ImportCar:Clone())("Sedan")
+-- require(game.ServerStorage.RunAutoshopTools.ImportCar:Clone())("SportSedan")
 -- Also accepts a Model (ImportPack passes one): ImportCar(model, "Sedan") returns report, flipped.
 -- Normalizes the car to the customer car contract and stores it in ServerStorage.RunAutoshopMeshes.<name>:
 -- anchored parts, wheel hubs as children, Attachment HoodHinge, and an axis-aligned pivot at the ground center facing -Z.
+-- Imports that came in at 100x (Blender's default FBX scale, centimeters read as studs) are scaled by 0.01.
 local ServerStorage = game:GetService("ServerStorage")
 
 local REQUIRED = {
@@ -74,6 +75,18 @@ return function(source, storeName)
 		end
 	end
 	assert(#missing == 0, "Missing parts: " .. table.concat(missing, ", "))
+
+	-- No car wheel is 20 studs across, so a wheel that big means the import came in at 100x.
+	local wheelSize = source.Wheel_FL.Size
+	if math.max(wheelSize.X, wheelSize.Y, wheelSize.Z) > 20 then
+		local origin = source:GetPivot()
+		for _, part in source:GetChildren() do
+			local offset = origin:ToObjectSpace(part.CFrame)
+			part.Size *= 0.01
+			part.CFrame = origin * CFrame.new(offset.Position * 0.01) * offset.Rotation
+		end
+		table.insert(report, "scaled by 0.01: the import came in at 100x (centimeters)")
+	end
 
 	local body = source.Body
 	local headlight = source:FindFirstChild("Headlight")

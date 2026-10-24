@@ -1,13 +1,13 @@
 -- Synced by Rojo to ServerStorage.RunAutoshopTools. Owned by the Art agent. After importing assets/models/Pack1.fbx
--- with Studio's Import 3D (File dimensions: Studs), run in Edit mode:
+-- (or another <Model>__<Part> FBX) with Studio's Import 3D (File dimensions: Studs), run in Edit mode:
 -- require(game.ServerStorage.RunAutoshopTools.ImportPack:Clone())("Pack1")
 -- Splits Workspace.<pack> by mesh name prefix (<Model>__<Part>) into ServerStorage.RunAutoshopMeshes.<Model>.
--- Cars go through ImportCar; kits get their root mesh as PrimaryPart with the pivot at its center.
+-- Cars (any model with Body and Wheel_FL) go through ImportCar; kits get their root mesh as PrimaryPart with the
+-- pivot at its center. Packs that came in at 100x (centimeters read as studs) are scaled by 0.01 first.
 local ServerStorage = game:GetService("ServerStorage")
 
 local importCar = require(ServerStorage.RunAutoshopTools.ImportCar:Clone())
 
-local CARS = { Sedan = true }
 -- Kit root meshes; their bounding boxes match the part template sizes in BuildAssets.
 local KIT_ROOTS = {
 	Engine = "Block",
@@ -58,6 +58,20 @@ local function importKit(model, flipped)
 	)
 end
 
+local function isCar(model)
+	return model:FindFirstChild("Body") ~= nil and model:FindFirstChild("Wheel_FL") ~= nil
+end
+
+-- No car wheel is 20 studs across, so a wheel that big means the pack came in at 100x.
+local function isCentimeters(pack)
+	for _, d in pack:GetDescendants() do
+		if d:IsA("BasePart") and d.Name:gsub("[%._]%d%d%d$", ""):match("__Wheel_[FR][LR]$") then
+			return math.max(d.Size.X, d.Size.Y, d.Size.Z) > 20
+		end
+	end
+	return false
+end
+
 return function(packName)
 	local pack = workspace:FindFirstChild(packName)
 	assert(pack, "Import the FBX into Workspace first: " .. packName)
@@ -71,6 +85,12 @@ return function(packName)
 		end
 	end
 	table.insert(report, "scripts removed: " .. removed)
+
+	-- The pack model is temporary (emptied below), so its scale factor doesn't outlive this import.
+	if pack:IsA("Model") and isCentimeters(pack) then
+		pack:ScaleTo(pack:GetScale() * 0.01)
+		table.insert(report, "scaled by 0.01: the pack came in at 100x (centimeters)")
+	end
 
 	local groups, order, unknown = {}, {}, {}
 	for _, d in pack:GetDescendants() do
@@ -97,15 +117,16 @@ return function(packName)
 
 	-- Cars first: the importer's facing applies to the whole file, so kits follow the car's flip.
 	table.sort(order, function(a, b)
-		if (CARS[a] == true) ~= (CARS[b] == true) then
-			return CARS[a] == true
+		local carA, carB = isCar(groups[a]), isCar(groups[b])
+		if carA ~= carB then
+			return carA
 		end
 		return a < b
 	end)
 	local flipped = false
 	for _, modelName in order do
 		local model = groups[modelName]
-		if CARS[modelName] then
+		if isCar(model) then
 			local carReport, carFlipped = importCar(model, modelName)
 			flipped = flipped or carFlipped
 			table.insert(report, modelName .. ":\n  " .. carReport:gsub("\n", "\n  "))
