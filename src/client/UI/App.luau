@@ -15,6 +15,14 @@ local player = Players.LocalPlayer
 local scope = Store.scope
 
 local PART_ICONS = { Engine = "⚙️", Transmission = "🔩", Battery = "🔋", Seat = "💺", Wheel = "⭕" }
+local PART_COLORS = {
+	Engine = C.Red,
+	Transmission = C.Purple,
+	Battery = C.Yellow,
+	Seat = C.Blue,
+	Wheel = C.Orange,
+}
+local DONE_CARD = Color3.fromRGB(222, 250, 228)
 local PART_ORDER = { "Engine", "Transmission", "Wheel", "Battery", "Seat" }
 
 local function formatMoney(n)
@@ -162,7 +170,7 @@ local function installedCount(attrs, partType)
 	return count
 end
 
--- Mirrors Shop's offer rules for display only; the server decides on purchase.
+-- Returns name, status, button text, button color, price, done.
 local function partOffer(attrs, partType)
 	local info = Config.Parts[partType]
 	local installed = installedCount(attrs, partType)
@@ -171,14 +179,53 @@ local function partOffer(attrs, partType)
 	local tiers = Config.Tiers[partType]
 	local name = (tiers and tier > 1 and Config.Tiers.Names[tier] .. " " or "") .. info.Label
 	if installed + inBag < info.Needed then
-		return name, string.format("%d/%d installed", installed, info.Needed), "Buy $" .. info.Price, C.Green
+		return name,
+			string.format("%d/%d installed", installed, info.Needed),
+			"Buy $" .. info.Price,
+			C.Green,
+			info.Price
 	elseif installed < info.Needed then
 		return name, string.format("%d in your bag - bolt it on!", inBag), nil
 	elseif tiers and tier < #tiers then
 		local nextTier = Config.Tiers.Names[tier + 1]
-		return name, "Installed ✓", nextTier .. " $" .. tiers[tier + 1].Price, C.Purple
+		local price = tiers[tier + 1].Price
+		return name, "Installed ✓", nextTier .. " $" .. price, C.Purple, price, true
 	end
-	return name, tiers and "MAXED ★" or "Installed ✓", nil
+	return name, tiers and "MAXED ★" or "Installed ✓", nil, nil, nil, true
+end
+
+local function pips(partType)
+	local needed = Config.Parts[partType].Needed
+	local row = {
+		Kit.List(scope, 4, true),
+	}
+	for i = 1, needed do
+		table.insert(
+			row,
+			scope:New("Frame")({
+				LayoutOrder = i,
+				Size = UDim2.fromOffset(18, 10),
+				BackgroundColor3 = scope:Computed(function(use)
+					local attrs = use(Store.attrs)
+					local installed = installedCount(attrs, partType)
+					if installed >= i then
+						return C.Green
+					elseif installed + (attrs["Inv_" .. partType] or 0) >= i then
+						return C.Yellow
+					end
+					return C.Muted
+				end),
+				[Children] = { Kit.Corner(scope, 5), Kit.Outline(scope, 2) },
+			})
+		)
+	end
+	return scope:New("Frame")({
+		Name = "Pips",
+		Position = UDim2.fromOffset(60, 54),
+		Size = UDim2.fromOffset(120, 12),
+		BackgroundTransparency = 1,
+		[Children] = row,
+	})
 end
 
 local function partCard(partType, order)
@@ -187,14 +234,29 @@ local function partCard(partType, order)
 	end)
 	return Kit.Panel(scope, {
 		LayoutOrder = order,
-		Size = UDim2.new(1, 0, 0, 74),
+		Size = UDim2.new(1, 0, 0, 80),
 		Padding = 8,
 		Radius = 14,
+		Color = scope:Computed(function(use)
+			return use(offer)[6] and DONE_CARD or C.Paper
+		end),
 		Children = {
-			Kit.Label(
-				scope,
-				{ Size = UDim2.fromOffset(52, 52), TextSize = 38, Text = PART_ICONS[partType], Stroke = false }
-			),
+			scope:New("Frame")({
+				Name = "Badge",
+				Size = UDim2.fromOffset(52, 52),
+				BackgroundColor3 = PART_COLORS[partType],
+				[Children] = {
+					Kit.Corner(scope, 14),
+					Kit.Outline(scope, 3),
+					Kit.Label(scope, {
+						Size = UDim2.fromScale(1, 1),
+						TextSize = 32,
+						Text = PART_ICONS[partType],
+						Stroke = false,
+					}),
+				},
+			}),
+			pips(partType),
 			Kit.Label(scope, {
 				Position = UDim2.fromOffset(60, 0),
 				Size = UDim2.new(1, -180, 0, 28),
@@ -229,7 +291,11 @@ local function partCard(partType, order)
 					return use(offer)[3] or ""
 				end),
 				Color = scope:Computed(function(use)
-					return use(offer)[4] or C.Green
+					local offered = use(offer)
+					if offered[5] and use(Store.money) < offered[5] then
+						return C.Muted
+					end
+					return offered[4] or C.Green
 				end),
 				OnClick = function()
 					Remotes.ShopBuy:FireServer("part", partType)
@@ -261,7 +327,7 @@ local function garagePanel()
 	end
 	return Kit.Panel(scope, {
 		Name = "GaragePanel",
-		Position = UDim2.new(0, 124, 0.5, -230),
+		Position = UDim2.new(0, 124, 0.5, -280),
 		Size = UDim2.fromOffset(380, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Visible = scope:Computed(function(use)

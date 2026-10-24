@@ -14,12 +14,18 @@ local player = Players.LocalPlayer
 
 local OVERVIEW_DISTANCE = 24
 local FOCUS_DISTANCE = 10
+local INTRO_DISTANCE = 52
+local MIN_DISTANCE, MAX_DISTANCE = 6, 45
+local OVERVIEW_FOV, FOCUS_FOV = 70, 56
 local MIN_PITCH, MAX_PITCH = math.rad(5), math.rad(80)
+local OVERVIEW_PITCH = math.rad(28)
 
 local active = nil
-local yaw, pitch = 0, math.rad(28)
+local yaw, yawGoal = 0, 0
+local pitch, pitchGoal = OVERVIEW_PITCH, OVERVIEW_PITCH
 local distance, distanceGoal = OVERVIEW_DISTANCE, OVERVIEW_DISTANCE
 local focus, focusGoal = Vector3.zero, Vector3.zero
+local lastStep = nil
 local rotating = false
 local saved = {}
 
@@ -54,6 +60,15 @@ local function resolveTarget(job)
 		node = node and node:FindFirstChild(name)
 	end
 	return node
+end
+
+local function stepKey()
+	local job = peek(Store.job)
+	if not job then
+		return nil
+	end
+	local target = job.target or job.targetPath and table.concat(job.targetPath, "/")
+	return tostring(job.step) .. "|" .. tostring(target)
 end
 
 local function highlightTargets()
@@ -96,13 +111,21 @@ local function render(dt)
 	if not active or not active.car.Parent then
 		return
 	end
-	local alpha = math.min(dt * 8, 1)
+	-- Frame-rate independent easing; orbit follows the mouse more tightly than focus and zoom.
+	local alpha = 1 - math.exp(-dt * 8)
+	local orbitAlpha = 1 - math.exp(-dt * 18)
 	focus = focus:Lerp(focusGoal, alpha)
 	distance += (distanceGoal - distance) * alpha
-	workspace.CurrentCamera.CFrame = CFrame.new(focus)
+	yaw += (yawGoal - yaw) * orbitAlpha
+	pitch += (pitchGoal - pitch) * orbitAlpha
+	local camera = workspace.CurrentCamera
+	camera.CFrame = CFrame.new(focus)
 		* CFrame.Angles(0, yaw, 0)
 		* CFrame.Angles(-pitch, 0, 0)
 		* CFrame.new(0, 0, distance)
+	-- Closer zoom narrows the FOV for a lens-in feel.
+	local zoom = math.clamp((OVERVIEW_DISTANCE - distance) / (OVERVIEW_DISTANCE - FOCUS_DISTANCE), 0, 1)
+	camera.FieldOfView = OVERVIEW_FOV + (FOCUS_FOV - OVERVIEW_FOV) * zoom
 	highlightTargets()
 end
 
@@ -110,6 +133,7 @@ function WorkView.overview()
 	if active then
 		focusGoal = carCenter()
 		distanceGoal = OVERVIEW_DISTANCE
+		pitchGoal = math.max(pitchGoal, OVERVIEW_PITCH)
 	end
 end
 
@@ -118,6 +142,7 @@ local function enter(work)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	active = work
 	saved.cameraType = camera.CameraType
+	saved.fieldOfView = camera.FieldOfView
 	if humanoid then
 		saved.walkSpeed, saved.jumpPower, saved.jumpHeight = humanoid.WalkSpeed, humanoid.JumpPower, humanoid.JumpHeight
 		humanoid.WalkSpeed, humanoid.JumpPower, humanoid.JumpHeight = 0, 0, 0
@@ -127,10 +152,13 @@ local function enter(work)
 	setCharacterHidden(true)
 	local look = camera.CFrame.LookVector
 	yaw = math.atan2(-look.X, -look.Z)
-	pitch = math.rad(28)
+	yawGoal = yaw
+	pitch, pitchGoal = OVERVIEW_PITCH, OVERVIEW_PITCH
 	focus = carCenter()
 	focusGoal = focus
-	distance, distanceGoal = OVERVIEW_DISTANCE, OVERVIEW_DISTANCE
+	-- Start far out and ease in to the overview.
+	distance, distanceGoal = INTRO_DISTANCE, OVERVIEW_DISTANCE
+	lastStep = stepKey()
 	highlightFolder.Parent = workspace
 	RunService:BindToRenderStep("RunAutoshopWorkView", Enum.RenderPriority.Camera.Value + 1, render)
 end
@@ -145,6 +173,7 @@ local function exit()
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	local camera = workspace.CurrentCamera
 	camera.CameraType = saved.cameraType or Enum.CameraType.Custom
+	camera.FieldOfView = saved.fieldOfView or 70
 	ProximityPromptService.Enabled = true
 	setCharacterHidden(false)
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -212,10 +241,10 @@ UserInputService.InputChanged:Connect(function(input)
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
-		yaw -= input.Delta.X * 0.008
-		pitch = math.clamp(pitch + input.Delta.Y * 0.006, MIN_PITCH, MAX_PITCH)
+		yawGoal -= input.Delta.X * 0.008
+		pitchGoal = math.clamp(pitchGoal + input.Delta.Y * 0.006, MIN_PITCH, MAX_PITCH)
 	elseif input.UserInputType == Enum.UserInputType.MouseWheel then
-		distanceGoal = math.clamp(distanceGoal - input.Position.Z * 3, 6, 45)
+		distanceGoal = math.clamp(distanceGoal * 0.85 ^ input.Position.Z, MIN_DISTANCE, MAX_DISTANCE)
 	end
 end)
 
@@ -229,6 +258,15 @@ Store.scope:Observer(Store.work):onChange(function()
 	elseif not work then
 		exit()
 	end
+end)
+
+-- Pull back to the overview whenever the job moves to a new step or target so the next one is visible.
+Store.scope:Observer(Store.job):onChange(function()
+	local key = stepKey()
+	if active and lastStep and key and key ~= lastStep then
+		WorkView.overview()
+	end
+	lastStep = key
 end)
 
 -- Leave the view if the character walks or gets moved too far away.

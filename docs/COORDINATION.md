@@ -72,4 +72,4 @@ Format: `- [open|done] From → To: request (date)`
 - [done] Gameplay → Art: propose final engine-bay part names for the battery swap and oil change jobs (2026-10-24). See the customer car contract.
 - [open] Art → Gameplay: confirm or change the engine-bay names in the customer car contract; Art will then model the bay into the sedan (2026-10-24)
 - [open] Gameplay → World: plan the multi-district city and keep `WorldData` in sync with the map (2026-10-24)
-- [open] Gameplay → UI: polish work-view camera feel, rebuild the spin ring in Fusion, improve garage visuals (2026-10-24)
+- [done] Gameplay → UI: polish work-view camera feel, rebuild the spin ring in Fusion, improve garage visuals (2026-10-24). UI: eased orbit/zoom with FOV lens-in, intro swoop, auto overview on step change; spin ring is now Fusion (`Store.spin`); Garage cards got badges, part pips, and affordability colors. Static checks only; not yet seen in a Studio playtest. Garage "visuals" covered only the menu; the 3D garage is World/Art.

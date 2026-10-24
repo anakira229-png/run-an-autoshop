@@ -23,6 +23,7 @@ local Store = {
 	panel = scope:Value(nil),
 	result = scope:Value(nil),
 	toasts = scope:Value({}),
+	spin = scope:Value(nil),
 	spinActive = scope:Value(false),
 	clock = scope:Value(os.clock()),
 }

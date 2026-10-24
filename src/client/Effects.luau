@@ -34,7 +34,8 @@ function Effects.shake(strength, duration)
 	shakeUntil = os.clock() + duration
 end
 
-RunService:BindToRenderStep("RunAutoshopShake", Enum.RenderPriority.Camera.Value + 1, function()
+-- Runs after the work-view camera (Camera + 1) so its absolute CFrame doesn't overwrite the shake.
+RunService:BindToRenderStep("RunAutoshopShake", Enum.RenderPriority.Camera.Value + 2, function()
 	local remaining = shakeUntil - os.clock()
 	if remaining <= 0 then
 		return
