@@ -90,6 +90,7 @@ local function assemble(entry, player)
 	end
 	entry.chassis = Chassis.build({
 		root = model.Frame,
+		frame = model:GetPivot(),
 		wheels = wheels,
 		seat = model.Installed.Seat,
 		driver = function()

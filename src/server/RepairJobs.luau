@@ -65,9 +65,12 @@ end
 
 local function addNuts(wheel, side, transparency)
 	local nuts = {}
+	-- side is +1 for the car's right; flip it when the wheel mesh's axle points the other way.
+	local right = wheel.Parent and wheel.Parent:IsA("Model") and wheel.Parent:GetPivot().RightVector or Vector3.xAxis
+	local axleSide = side * (wheel.CFrame.XVector:Dot(right) >= 0 and 1 or -1)
 	for i = 1, 5 do
 		local a = i / 5 * math.pi * 2
-		local cf = wheel.CFrame * CFrame.new(side * 0.72, math.cos(a) * 0.38, math.sin(a) * 0.38)
+		local cf = wheel.CFrame * CFrame.new(axleSide * 0.72, math.cos(a) * 0.38, math.sin(a) * 0.38)
 		local nut = decor(
 			"LugNut",
 			Enum.PartType.Cylinder,
@@ -306,7 +309,8 @@ local function startTestDrive(state, player)
 	seat.Torque = 0
 	seat.TurnSpeed = 0
 	seat.HeadsUpDisplay = false
-	seat.CFrame = body.CFrame * CFrame.new(-1.3, 1.2, 0.8)
+	-- Low enough that a seated avatar's head clears the roof; hips sink slightly into the cushion.
+	seat.CFrame = car:GetPivot() * CFrame.new(-1.3, 1.25, 0.35)
 	weld(body, seat)
 	seat.Parent = car
 
@@ -316,6 +320,7 @@ local function startTestDrive(state, player)
 	end
 	state.chassis = Chassis.build({
 		root = body,
+		frame = car:GetPivot(),
 		wheels = wheels,
 		seat = seat,
 		driver = state.owner,
@@ -406,7 +411,7 @@ local function runFlatTire(state)
 			wheel.Name = "OldWheel"
 			wheel.Parent = car.Parent
 			state.oldWheel = wheel
-			local outward = body.CFrame:VectorToWorldSpace(Vector3.new(state.side, 0, 0))
+			local outward = car:GetPivot().RightVector * state.side
 			local ground = car:GetPivot().Position.Y
 			local drop = CFrame.new(Vector3.new(wheel.Position.X, ground + 0.6, wheel.Position.Z) + outward * 3.5)
 				* CFrame.Angles(0, 0, math.pi / 2)
@@ -436,6 +441,11 @@ local function runFlatTire(state)
 				local newWheel = assets.Parts.Wheel:Clone()
 				newWheel.Name = state.wheelName
 				PartUtil.place(newWheel, fitCFrame)
+				for _, d in newWheel:GetDescendants() do
+					if d:IsA("BasePart") then
+						d.Anchored = false
+					end
+				end
 				newWheel.Anchored = false
 				newWheel.CanCollide = false
 				weld(body, newWheel)
@@ -527,11 +537,13 @@ local function setupFault(state)
 		state.wheelOffset = car.Body.CFrame:ToObjectSpace(wheel.CFrame)
 		state.side = wheel.Name:sub(-1) == "L" and -1 or 1
 		state.nuts = addNuts(wheel, state.side, 0)
+		local up = car:GetPivot().UpVector
+		local radius = math.min(wheel.Size.Y, wheel.Size.Z) / 2
 		local bulge = decor(
 			"FlatBulge",
 			Enum.PartType.Block,
 			Vector3.new(1.25, 0.45, 2.1),
-			wheel.CFrame * CFrame.new(0, -1.05, 0),
+			CFrame.new(wheel.Position - up * (radius - 0.25)) * car:GetPivot().Rotation,
 			wheel.Color,
 			wheel.Material
 		)
@@ -545,21 +557,39 @@ local function setupFault(state)
 		state.dents = {}
 		state.dentHits = 0
 		state.dentMisses = 0
-		local half = panel.Size / 2
+		-- Work in the car's frame so dents land on the outer surface whatever the mesh's own orientation.
+		local frame = car:GetPivot()
+		local axes = { frame.RightVector, frame.UpVector, frame.LookVector }
+		local half = {}
+		for i, axis in axes do
+			local r = panel.CFrame
+			half[i] = (
+				math.abs(axis:Dot(r.XVector)) * panel.Size.X
+				+ math.abs(axis:Dot(r.YVector)) * panel.Size.Y
+				+ math.abs(axis:Dot(r.ZVector)) * panel.Size.Z
+			) / 2
+		end
 		for i = 1, Config.Dent.Count do
 			local t = (i - 0.5) / Config.Dent.Count * 2 - 1
-			local offset
+			local u = math.random() * 2 - 1
+			local position
 			if panel.Name == "Panel_Hood" then
-				offset = Vector3.new(t * (half.X - 0.4), half.Y, (math.random() * 2 - 1) * (half.Z - 0.5))
+				position = panel.Position
+					+ axes[1] * t * math.max(half[1] - 0.4, 0)
+					+ axes[2] * half[2]
+					+ axes[3] * u * math.max(half[3] - 0.5, 0)
 			else
 				local sign = panel.Name == "Panel_Left" and -1 or 1
-				offset = Vector3.new(sign * half.X, (math.random() * 2 - 1) * (half.Y - 0.3), t * (half.Z - 0.4))
+				position = panel.Position
+					+ axes[1] * sign * half[1]
+					+ axes[2] * u * math.max(half[2] - 0.3, 0)
+					+ axes[3] * t * math.max(half[3] - 0.4, 0)
 			end
 			local dent = decor(
 				"Dent",
 				Enum.PartType.Ball,
 				Vector3.new(0.8, 0.8, 0.8),
-				panel.CFrame * CFrame.new(offset),
+				CFrame.new(position),
 				DENT_COLOR,
 				Enum.Material.Metal
 			)

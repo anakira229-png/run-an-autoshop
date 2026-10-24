@@ -72,16 +72,26 @@ return {
 	Car = {
 		MaxSpeed = 60,
 		ReverseSpeed = 25,
-		WheelRadius = 1.3,
-		MotorTorque = 6000,
 		-- Wheel angular acceleration cap in rad/s^2; about 2.3s from 0 to top speed.
 		MotorAcceleration = 20,
-		BrakeTorque = 1500,
+		-- Decelerations in studs/s^2: brakes when pressing against travel, engine braking when coasting.
+		BrakeDecel = 70,
+		CoastDecel = 14,
 		MaxSteerAngle = 30,
 		HighSpeedSteerFactor = 0.5,
-		-- Flip these if playtesting shows the car drives or steers the wrong way.
-		DriveSign = -1,
+		-- Flip if playtesting shows the car steers the wrong way.
 		SteerSign = -1,
+		SuspensionFrequency = 2,
+		SuspensionDamping = 0.6,
+		SuspensionTravel = 0.7,
+		SpringHeight = 2.5,
+		-- Ballast mass as a fraction of the body's, placed low to keep the car flat.
+		BallastRatio = 1,
+		-- Extra down force at top speed as a fraction of the car's weight.
+		Downforce = 0.35,
+		-- Self-righting torque limit in car-weight x studs; low enough that suspension can still lean.
+		UprightLever = 1.2,
+		UprightResponsiveness = 12,
 		ResetCooldown = 3,
 	},
 

@@ -29,8 +29,9 @@ Server to client: `SpinState`, `DentState`, `JobUpdate`, `JobResult`, `Notify`, 
 
 ### Customer car model (producer: Art; consumer: Gameplay)
 
-- Built in studs, front facing -Z, model pivot at the ground center, `PrimaryPart` = `Body`.
-- Required direct children: `Body`, `Cabin`, `Roof`, `Panel_Hood`, `Panel_Left`, `Panel_Right`, `Wheel_FL`, `Wheel_FR`, `Wheel_RL`, `Wheel_RR`. Each wheel has a child `Hub` welded to it.
+- Built in studs, front facing -Z, model pivot at the ground center and axis-aligned (identity rotation), `PrimaryPart` = `Body`. Gameplay uses the pivot, never `Body`'s own orientation, for directions.
+- Required direct children: `Body`, `Cabin`, `Roof`, `Panel_Hood`, `Panel_Left`, `Panel_Right`, `Wheel_FL`, `Wheel_FR`, `Wheel_RL`, `Wheel_RR`. Each wheel has a child `Hub` welded to it; sedan v3 wheels are a 1.2 x 2.6 x 2.6 cylinder `Part` with `Tire` and `Hub` mesh children (welds parented to the children).
+- Sedan v3 extras (Art, 2026-10-24): `Glass` (not paintable), `Interior`, `EngineCover`, `BayTrim`, `Reservoir`, `ArchTrim`, `Grille`, `Plate`, `Exhaust`, `Handle`, `Mirror` (paintable). `Cabin` is now the paintable pillar frame. Size about 7 x 6 x 13.9.
 - Wheels: axle along the wheel's local X, width about 1.2, radius 1.3 to 1.45.
 - Paintable parts have the attribute `Paint = true`; the server recolors them per customer.
 - Engine-bay parts (confirmed by Gameplay 2026-10-24): direct children of the car, welded to `Body`, not paintable, hidden under the closed hood.
@@ -57,7 +58,8 @@ Server to client: `SpinState`, `DentState`, `JobUpdate`, `JobResult`, `Notify`, 
 
 - +X is east, +Z is north (matching the street names). 24-stud streets on a 120-stud grid, 96x96 blocks, road top at y = 0.2, sidewalks at y = 0.5.
 - Districts: Downtown (x, z within ±252: Main Street, the 4 plots, Town Square with `Workspace.SpawnLocation`, towers), Maple Heights suburbs (x < -252), Foundry Flats industrial (x > 252) with the Junkyard compound (x 252..348, z -348..-132, gate on North Street), Market Row retail (z < -252), Greenfield Park (z > 252), and a 56-wide Ring Highway at ±450 (rounded corners, median barrier with gaps at the 4 axis junctions).
-- Roads are at grade everywhere, so there are no overpasses or ramps. An invisible boundary wall sits at ±600.
+- Roads are at grade everywhere, so there are no overpasses or ramps. An invisible boundary wall sits at ±600. Main Street and Center Boulevard end at ±422 where they meet the highway; `BuildMap` widens the Baseplate to at least 1400 x 1400.
+- Plots also have a flush `LiftPlate` under the bay and closed `BayLine` / `PadLine` outlines (non-colliding). Nothing taller than 1 stud within 8 studs of the bay car.
 - Optional models from Art: `ServerStorage.RunAutoshopAssets.CityKit.<Name>` with `House` (about 22 x 16 footprint), `Tree` (about 9 wide), `ParkedCar`, and `WreckCar` (6 x 12.5). Studs, pivot at ground center, front facing -Z, parts with `Paint = true` are tinted. `BuildCity` uses them instead of its block stand-ins; no scripts are kept.
 
 ## Rebuilding Studio Content
@@ -79,7 +81,12 @@ In Edit mode, in this order:
 
 Format: `- [open|done] From → To: request (date)`
 
-- [open] Gameplay → Art: import the sedan v2 (`assets/models/Sedan.fbx`, needs the user to run Studio's Import 3D with File dimensions = Studs), convert it with `ImportCar`, and make `BuildAssets` build `CustomerCar` from `RunAutoshopMeshes.Sedan` when present (2026-10-24). Art: `BuildAssets` and `ImportCar` support done; waiting on the user's Studio import. Gameplay: the user imported it; it sits unconverted at `Workspace.Sedan` (23 MeshParts, extents about 64 x 4.5 x 50 studs, which looks too spread out for one car). Check it before converting.
+- [open] Gameplay → user: import `assets/models/Pack1.fbx` (Import 3D, File dimensions = Studs, Merge Meshes off) so Gameplay can run `ImportPack("Pack1")`, `BuildAssets`, and `BuildMap` and playtest sedan v3 and the parts kit (2026-10-24)
+- [open] Gameplay → Art: after Pack1 is verified, a `CityKit` pack (`House`, `Tree`, `ParkedCar`, `WreckCar`) and a proper personal car body, in one FBX (2026-10-24)
+- [open] Gameplay → Gameplay: battery swap and oil change jobs once sedan v3 is in Studio (2026-10-24)
+- [done] Gameplay → UI: no clipping or overlap from 1024 x 600 to 2560 x 1440, work-view camera collision, speedometer and speed FOV (2026-10-24). UI: `Store.uiScale`, `Kit.ScaledRoot`, `Kit.Label` `Fit`, new `DrivingHud.luau`. Gameplay verified in Studio: speedometer shows when seated; work view frames the target side at 15 studs.
+- [done] Gameplay → World: consistency pass and clear bay (2026-10-24). Rebuilt by Gameplay: 5,904 instances, 0 WorldData problems, no warnings.
+- [done] Gameplay → Art: import the sedan v2 and build `CustomerCar` from it (2026-10-24). Gameplay converted it (the "spread out" look was unanchored parts falling apart in Play) and fixed its pivot in Studio. Superseded by sedan v3 in Pack1.
 - [done] Gameplay → Art: propose final engine-bay part names for the battery swap and oil change jobs (2026-10-24). See the customer car contract.
 - [done] Art → Gameplay: confirm or change the engine-bay names in the customer car contract; Art will then model the bay into the sedan (2026-10-24). Gameplay: confirmed as proposed. Go ahead and model the bay.
 - [done] Gameplay → World: plan the multi-district city and keep `WorldData` in sync with the map (2026-10-24). World: built the compact city (highway at ±450, ~5,300 parts) and 50 call-out spots; see the City map contract. Verified in Edit mode only: 0 WorldData problems, no gaps or lips across 24,770 road samples, clear car footprints at every call-out spot and customer-path marker. Not playtested.
