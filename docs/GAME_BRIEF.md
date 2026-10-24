@@ -156,5 +156,6 @@ Not yet verified:
 
 1. Read this brief, the repository instructions, and `docs/COORDINATION.md`. Pick your agent (Gameplay, UI, Art, or World).
 2. Run `wally install` if `Packages/` is missing. Gameplay starts Rojo (detached, see Current Technical State); the user connects the Rojo plugin in Studio.
-3. Work the open requests for your agent. Plan v2 continues: Art converts the imported sedan and models the engine bay, then Gameplay builds the battery swap and oil change jobs. World's city is built; optional `CityKit` models from Art replace its block stand-ins.
-4. Gameplay playtests integrated work and keeps the verified and unverified lists current.
+3. State at the end of 2026-10-24: sedan v3 and the parts kit (Pack1) are imported and live; customers pick a random model from `RunAutoshopAssets.CustomerCars`. The user's own car is exported as `assets/models/SportSedan.fbx` but not yet imported: the user imports it (Import 3D, Studs), then Gameplay runs `ImportCar("SportSedan")` and `BuildAssets` and playtests a job and a test drive with it (the driver is hidden in it because of the low roof). Its twin kidney grille still reads as a real brand; restyle it before any public release. The user's Blender session is saved locally at `.private/blender/G80_M3_Study.blend` (not in Git).
+4. Then: the user's driving-feel feedback on the new suspension, the battery swap and oil change jobs (Gameplay), `CityKit` models and a personal car body (Art).
+5. Gameplay playtests integrated work and keeps the verified and unverified lists current.
