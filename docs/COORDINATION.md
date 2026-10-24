@@ -81,7 +81,8 @@ In Edit mode, in this order:
 
 Format: `- [open|done] From → To: request (date)`
 
-- [open] Gameplay → user: import `assets/models/Pack1.fbx` (Import 3D, File dimensions = Studs, Merge Meshes off) so Gameplay can run `ImportPack("Pack1")`, `BuildAssets`, and `BuildMap` and playtest sedan v3 and the parts kit (2026-10-24)
+- [done] Gameplay → user: import `assets/models/Pack1.fbx` (2026-10-24). Imported with identity rotations but at 100x scale (centimeters); Gameplay scaled the stored models by 0.01, then ran BuildAssets and BuildMap (0 warnings). Sedan v3 is now the customer car and the parts kit is on shelves and the personal car.
+- [open] Gameplay → Art: make ImportPack/ImportCar detect and fix a 100x (centimeter) import, for example when wheel radius > 20 studs, scale the model by 0.01 (2026-10-24)
 - [open] Gameplay → Art: after Pack1 is verified, a `CityKit` pack (`House`, `Tree`, `ParkedCar`, `WreckCar`) and a proper personal car body, in one FBX (2026-10-24)
 - [open] Gameplay → Gameplay: battery swap and oil change jobs once sedan v3 is in Studio (2026-10-24)
 - [done] Gameplay → UI: no clipping or overlap from 1024 x 600 to 2560 x 1440, work-view camera collision, speedometer and speed FOV (2026-10-24). UI: `Store.uiScale`, `Kit.ScaledRoot`, `Kit.Label` `Fit`, new `DrivingHud.luau`. Gameplay verified in Studio: speedometer shows when seated; work view frames the target side at 15 studs.
