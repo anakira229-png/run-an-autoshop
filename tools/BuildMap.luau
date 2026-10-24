@@ -1,49 +1,27 @@
 -- Synced by Rojo to ServerStorage.RunAutoshopTools. Owned by the World agent. Run in edit mode with:
 -- require(game.ServerStorage.RunAutoshopTools.BuildMap:Clone())()
--- Replaces Workspace.RunAutoshopMap and restyles Lighting and the Baseplate. Needs BuildAssets to have run.
+-- Replaces Workspace.RunAutoshopMap (plots, then the city via BuildCity) and restyles Lighting, the Baseplate, and the
+-- spawn. Needs BuildAssets to have run.
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 
 local PartUtil = require(ReplicatedStorage.RunAutoshop.PartUtil)
+local City = require(ServerStorage.RunAutoshopTools.BuildCity:Clone())
 
+-- Plots sit on Main Street (z = 0), two per side, with their shop fronts facing it.
 local PLOT_POSITIONS = {
-	CFrame.new(-60, 0, -60),
-	CFrame.new(60, 0, -60),
-	CFrame.new(-60, 0, 60) * CFrame.Angles(0, math.pi, 0),
-	CFrame.new(60, 0, 60) * CFrame.Angles(0, math.pi, 0),
+	CFrame.new(-60, 0, -60) * CFrame.Angles(0, math.pi, 0),
+	CFrame.new(60, 0, -60) * CFrame.Angles(0, math.pi, 0),
+	CFrame.new(-60, 0, 60),
+	CFrame.new(60, 0, 60),
 }
 
-local GROUND = 0.2
+local GROUND = City.GROUND
 local ASPHALT = Color3.fromRGB(55, 57, 62)
-
-local function part(parent, name, size, cframe, color, material, props)
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Size = size
-	p.CFrame = cframe
-	p.Color = color or Color3.fromRGB(160, 160, 160)
-	p.Material = material or Enum.Material.SmoothPlastic
-	p.Anchored = true
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	if props then
-		for k, v in props do
-			p[k] = v
-		end
-	end
-	p.Parent = parent
-	return p
-end
-
-local function marker(parent, name, cframe)
-	return part(parent, name, Vector3.new(1, 1, 1), cframe, Color3.new(1, 0, 1), nil, {
-		Transparency = 1,
-		CanCollide = false,
-		CanQuery = false,
-		CanTouch = false,
-	})
-end
+local part = City.part
+local marker = City.marker
+local TOWN_SQUARE_SPAWN = Vector3.new(-180, City.PAD_TOP + 0.5, 25)
 
 local function buildPlot(parent, index, pivot)
 	local model = Instance.new("Model")
@@ -233,215 +211,20 @@ local function buildPlot(parent, index, pivot)
 	marker(markers, "CarPad", at(18, GROUND, 8))
 	marker(markers, "SpawnPoint", at(0, 3, -20) * CFrame.Angles(0, math.pi, 0))
 	local path = {
-		In1 = Vector3.new(-70, GROUND, -62),
-		In2 = Vector3.new(-32, GROUND, -62),
+		In1 = Vector3.new(-70, GROUND, -54),
+		In2 = Vector3.new(-32, GROUND, -54),
 		In3 = Vector3.new(-18, GROUND, -50),
 		Out1 = Vector3.new(-18, GROUND, -36),
-		Out2 = Vector3.new(-4, GROUND, -56),
-		Out3 = Vector3.new(70, GROUND, -58),
+		Out2 = Vector3.new(-4, GROUND, -54),
+		Out3 = Vector3.new(70, GROUND, -54),
 	}
 	for name, v in path do
 		marker(markers, name, at(v.X, v.Y, v.Z))
 	end
 
 	model.WorldPivot = pivot
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	model.Parent = parent
-end
-
-local function buildRoads(parent)
-	local roads = Instance.new("Folder")
-	roads.Name = "Roads"
-	roads.Parent = parent
-	local function road(size, pos)
-		part(roads, "Road", size, CFrame.new(pos), ASPHALT, Enum.Material.Asphalt)
-	end
-	local function line(size, pos)
-		part(
-			roads,
-			"Line",
-			size,
-			CFrame.new(pos),
-			Color3.fromRGB(235, 200, 50),
-			Enum.Material.SmoothPlastic,
-			{ CanCollide = false }
-		)
-	end
-	-- Outer ring.
-	road(Vector3.new(264, 0.2, 24), Vector3.new(0, 0.1, -120))
-	road(Vector3.new(264, 0.2, 24), Vector3.new(0, 0.1, 120))
-	road(Vector3.new(24, 0.2, 216), Vector3.new(-120, 0.1, 0))
-	road(Vector3.new(24, 0.2, 216), Vector3.new(120, 0.1, 0))
-	-- Center cross.
-	road(Vector3.new(24, 0.2, 216), Vector3.new(0, 0.1, 0))
-	road(Vector3.new(96, 0.2, 24), Vector3.new(-60, 0.1, 0))
-	road(Vector3.new(96, 0.2, 24), Vector3.new(60, 0.1, 0))
-	-- Center lines between intersections.
-	for _, z in { -120, 120 } do
-		for _, x in { -60, 60 } do
-			line(Vector3.new(96, 0.05, 0.5), Vector3.new(x, 0.225, z))
-		end
-	end
-	for _, x in { -120, 0, 120 } do
-		for _, z in { -60, 60 } do
-			line(Vector3.new(0.5, 0.05, 96), Vector3.new(x, 0.225, z))
-		end
-	end
-	for _, x in { -60, 60 } do
-		line(Vector3.new(96, 0.05, 0.5), Vector3.new(x, 0.225, 0))
-	end
-end
-
-local function buildEnvironment(parent)
-	local city = Instance.new("Folder")
-	city.Name = "City"
-	city.Parent = parent
-	local rng = Random.new(7)
-	local concrete = Color3.fromRGB(165, 162, 155)
-	local lampColor = Color3.fromRGB(255, 220, 170)
-
-	-- Sidewalks around the outer ring; the x-facing strips stop short to avoid overlapping corners.
-	part(city, "Sidewalk", Vector3.new(276, 0.5, 6), CFrame.new(0, 0.25, -135), concrete, Enum.Material.Concrete)
-	part(city, "Sidewalk", Vector3.new(276, 0.5, 6), CFrame.new(0, 0.25, 135), concrete, Enum.Material.Concrete)
-	part(city, "Sidewalk", Vector3.new(6, 0.5, 264), CFrame.new(-135, 0.25, 0), concrete, Enum.Material.Concrete)
-	part(city, "Sidewalk", Vector3.new(6, 0.5, 264), CFrame.new(135, 0.25, 0), concrete, Enum.Material.Concrete)
-
-	local sides = {
-		{ outward = Vector3.new(0, 0, -1), along = Vector3.new(1, 0, 0) },
-		{ outward = Vector3.new(0, 0, 1), along = Vector3.new(1, 0, 0) },
-		{ outward = Vector3.new(-1, 0, 0), along = Vector3.new(0, 0, 1) },
-		{ outward = Vector3.new(1, 0, 0), along = Vector3.new(0, 0, 1) },
-	}
-	local palette = {
-		Color3.fromRGB(150, 85, 70),
-		Color3.fromRGB(190, 180, 160),
-		Color3.fromRGB(95, 105, 120),
-		Color3.fromRGB(170, 130, 95),
-		Color3.fromRGB(120, 125, 110),
-	}
-	for _, side in sides do
-		for _, t in { -100, -33, 33, 100 } do
-			local base = side.outward * 136 + side.along * t
-			local top = base + Vector3.new(0, 16, 0)
-			local toRoad = -side.outward
-			part(
-				city,
-				"LampPost",
-				Vector3.new(0.6, 16, 0.6),
-				CFrame.new(base + Vector3.new(0, 8.5, 0)),
-				Color3.fromRGB(45, 45, 50),
-				Enum.Material.Metal
-			)
-			part(
-				city,
-				"LampArm",
-				Vector3.new(0.4, 0.4, 5),
-				CFrame.lookAt(top + toRoad * 2.5, top + toRoad * 5),
-				Color3.fromRGB(45, 45, 50),
-				Enum.Material.Metal
-			)
-			local head = part(
-				city,
-				"LampHead",
-				Vector3.new(1.4, 0.4, 2.2),
-				CFrame.lookAt(top + toRoad * 5 - Vector3.new(0, 0.3, 0), top + toRoad * 6 - Vector3.new(0, 0.3, 0)),
-				lampColor,
-				Enum.Material.Neon,
-				{ CanCollide = false }
-			)
-			local spot = Instance.new("SpotLight")
-			spot.Face = Enum.NormalId.Bottom
-			spot.Range = 45
-			spot.Angle = 110
-			spot.Brightness = 3
-			spot.Color = lampColor
-			spot.Parent = head
-		end
-
-		for _, t in { -100, -35, 35, 100 } do
-			local width = rng:NextInteger(44, 56)
-			local height = ({ 30, 45, 60, 75 })[rng:NextInteger(1, 4)]
-			local center = side.outward * 160 + side.along * t + Vector3.new(0, height / 2, 0)
-			local facing = CFrame.lookAt(center, center - side.outward)
-			local building = Instance.new("Model")
-			building.Name = "Building"
-			building.Parent = city
-			part(
-				building,
-				"Shell",
-				Vector3.new(width, height, 36),
-				facing,
-				palette[rng:NextInteger(1, #palette)],
-				Enum.Material.Brick
-			)
-			part(
-				building,
-				"Roof",
-				Vector3.new(width + 1, 1, 37),
-				facing * CFrame.new(0, height / 2 + 0.5, 0),
-				Color3.fromRGB(60, 60, 65),
-				Enum.Material.Concrete
-			)
-			part(
-				building,
-				"Storefront",
-				Vector3.new(width - 6, 5, 0.3),
-				facing * CFrame.new(0, 3.5 - height / 2, -18.1),
-				Color3.fromRGB(200, 155, 95),
-				Enum.Material.Neon
-			)
-			for floor = 1, math.floor(height / 10) - 1 do
-				local lit = rng:NextNumber() < 0.45
-				part(
-					building,
-					"Windows",
-					Vector3.new(width - 6, 3.2, 0.3),
-					facing * CFrame.new(0, floor * 10 + 2 - height / 2, -18.1),
-					lit and Color3.fromRGB(190, 145, 90) or Color3.fromRGB(40, 55, 75),
-					lit and Enum.Material.Neon or Enum.Material.Glass,
-					{ Reflectance = lit and 0 or 0.2 }
-				)
-			end
-		end
-	end
-
-	for _, corner in { Vector3.new(-1, 0, -1), Vector3.new(1, 0, -1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, 1) } do
-		for _, offset in { Vector3.new(150, 0, 150), Vector3.new(164, 0, 142), Vector3.new(142, 0, 164) } do
-			local pos = offset * corner
-			part(
-				city,
-				"Trunk",
-				Vector3.new(8, 1.4, 1.4),
-				CFrame.new(pos + Vector3.new(0, 4, 0)) * CFrame.Angles(0, 0, math.pi / 2),
-				Color3.fromRGB(90, 65, 45),
-				Enum.Material.Wood,
-				{
-					Shape = Enum.PartType.Cylinder,
-				}
-			)
-			part(
-				city,
-				"Leaves",
-				Vector3.new(9, 9, 9),
-				CFrame.new(pos + Vector3.new(0, 10, 0)),
-				Color3.fromRGB(60, 110, 50),
-				Enum.Material.Grass,
-				{
-					Shape = Enum.PartType.Ball,
-				}
-			)
-			part(
-				city,
-				"Leaves",
-				Vector3.new(6, 6, 6),
-				CFrame.new(pos + Vector3.new(1.5, 13.5, 1)),
-				Color3.fromRGB(75, 130, 60),
-				Enum.Material.Grass,
-				{
-					Shape = Enum.PartType.Ball,
-				}
-			)
-		end
-	end
 end
 
 local function setupLighting()
@@ -498,9 +281,22 @@ return function()
 	for i, pivot in PLOT_POSITIONS do
 		buildPlot(plots, i, pivot)
 	end
-	buildRoads(map)
-	buildEnvironment(map)
+	local partCount = City.build(map)
+	local problems = City.validate(map)
+	for _, problem in problems do
+		warn("BuildMap: " .. problem)
+	end
 	map.Parent = workspace
 	setupLighting()
-	return "Map built: " .. #map:GetDescendants() .. " instances"
+	local spawn = workspace:FindFirstChild("SpawnLocation")
+	if spawn then
+		spawn.Position = TOWN_SQUARE_SPAWN
+	end
+	return "Map built: "
+		.. #map:GetDescendants()
+		.. " instances ("
+		.. partCount
+		.. " city parts), "
+		.. #problems
+		.. " WorldData problems"
 end

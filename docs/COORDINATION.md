@@ -44,11 +44,21 @@ Server to client: `SpinState`, `DentState`, `JobUpdate`, `JobResult`, `Notify`, 
 - `Workspace.RunAutoshopMap.Plots.Plot<N>` models with attributes `PlotIndex` and `OwnerUserId`.
 - Each plot contains `Floor`, `Sign.SurfaceGui.Label`, `PartsShelf.Table`, `PartsShelf.Items.<PartType>`, `ToolBench.Toolbox`, and `Markers` with `Bay`, `CarPad`, `SpawnPoint`, `In1`-`In3`, and `Out1`-`Out3`.
 - Customer cars drive In1 → In2 → In3 → Bay, then Out1 → Out2 → Out3.
+- Plots line Main Street (z = 0) with the shop fronts facing it. `In1`, `In2`, `Out2`, and `Out3` sit in the lane on the shop's side of Main Street, 6 studs from its center (right-hand traffic), so cars come in and go out in one direction per side.
+- `Plot<N>` models use `ModelStreamingMode = Persistent`.
 
 ### World data (producer: World; consumer: Gameplay; `src/shared/WorldData.luau`)
 
-- `TestDriveLoop`: road points visited in order, starting from the one nearest the shop.
-- `CalloutSpots`: `{ Name, Position, Yaw }` road-shoulder spots for roadside breakdowns.
+- `TestDriveLoop`: road points visited in order, starting from the one nearest the shop. It is the 240-stud downtown ring (corners at x, z = ±120).
+- `CalloutSpots`: `{ District, Name, Position, Yaw }` road-shoulder spots for roadside breakdowns, 50 across all districts. `District` is extra data Gameplay may ignore or use to filter by area. Yaw 0 faces -Z, 90 faces -X, 180 faces +Z, -90 faces +X.
+- `BuildMap` warns if any point here, or any plot lane marker, is not on a built road.
+
+### City map (producer: World; `tools/BuildMap.luau`, `tools/BuildCity.luau`)
+
+- +X is east, +Z is north (matching the street names). 24-stud streets on a 120-stud grid, 96x96 blocks, road top at y = 0.2, sidewalks at y = 0.5.
+- Districts: Downtown (x, z within ±252: Main Street, the 4 plots, Town Square with `Workspace.SpawnLocation`, towers), Maple Heights suburbs (x < -252), Foundry Flats industrial (x > 252) with the Junkyard compound (x 252..348, z -348..-132, gate on North Street), Market Row retail (z < -252), Greenfield Park (z > 252), and a 56-wide Ring Highway at ±450 (rounded corners, median barrier with gaps at the 4 axis junctions).
+- Roads are at grade everywhere, so there are no overpasses or ramps. An invisible boundary wall sits at ±600.
+- Optional models from Art: `ServerStorage.RunAutoshopAssets.CityKit.<Name>` with `House` (about 22 x 16 footprint), `Tree` (about 9 wide), `ParkedCar`, and `WreckCar` (6 x 12.5). Studs, pivot at ground center, front facing -Z, parts with `Paint = true` are tinted. `BuildCity` uses them instead of its block stand-ins; no scripts are kept.
 
 ## Rebuilding Studio Content
 
@@ -72,5 +82,8 @@ Format: `- [open|done] From → To: request (date)`
 - [open] Gameplay → Art: import the sedan v2 (`assets/models/Sedan.fbx`, needs the user to run Studio's Import 3D with File dimensions = Studs), convert it with `ImportCar`, and make `BuildAssets` build `CustomerCar` from `RunAutoshopMeshes.Sedan` when present (2026-10-24). Art: `BuildAssets` and `ImportCar` support done; waiting on the user's Studio import.
 - [done] Gameplay → Art: propose final engine-bay part names for the battery swap and oil change jobs (2026-10-24). See the customer car contract.
 - [open] Art → Gameplay: confirm or change the engine-bay names in the customer car contract; Art will then model the bay into the sedan (2026-10-24)
-- [open] Gameplay → World: plan the multi-district city and keep `WorldData` in sync with the map (2026-10-24)
+- [done] Gameplay → World: plan the multi-district city and keep `WorldData` in sync with the map (2026-10-24). World: built the compact city (highway at ±450, ~5,300 parts) and 50 call-out spots; see the City map contract. Verified in Edit mode only: 0 WorldData problems, no gaps or lips across 24,770 road samples, clear car footprints at every call-out spot and customer-path marker. Not playtested.
+- [open] World → Gameplay: playtest on the new map: customer arrival and departure lanes on Main Street, the 75 s test drive on the downtown ring, call-outs now spread across 1.3 km (consider filtering `CalloutSpots` by `District` or distance, and note travel time against `Config.Callouts.ExpireTime`), and streaming at highway speeds. The map has about 230 spot lights (downtown and highway lamps, no shadows); tell World if frame rate suffers (2026-10-24)
+- [open] World → Gameplay: update the brief's Technical State and the map line in "Plan v2" with the City map contract above. `Workspace.SpawnLocation` moved to Town Square (-180, 1, 25) by `BuildMap`; it is the only non-map instance World moves (2026-10-24)
+- [open] World → Art: optional `CityKit` models (`House`, `Tree`, `ParkedCar`, `WreckCar`) in `RunAutoshopAssets`; `BuildCity` already uses them when present. Lower priority than the car work (2026-10-24)
 - [done] Gameplay → UI: polish work-view camera feel, rebuild the spin ring in Fusion, improve garage visuals (2026-10-24). UI: eased orbit/zoom with FOV lens-in, intro swoop, auto overview on step change; spin ring is now Fusion (`Store.spin`); Garage cards got badges, part pips, and affordability colors. Static checks only; not yet seen in a Studio playtest. Garage "visuals" covered only the menu; the 3D garage is World/Art.
