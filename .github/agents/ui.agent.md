@@ -26,3 +26,9 @@ Start every session by reading `.github/copilot-instructions.md`, `docs/COORDINA
 2. Make a small, focused change and keep `Store` the single source of client state.
 3. Run `stylua src tools`, `selene src tools`, and `rojo build -o .private/build-check.rbxl`.
 4. Commit only your files, push, and update the coordination file. Say plainly what was and wasn't verified in Studio.
+
+## When Delegated by the Lead
+When the Gameplay lead runs you as a subagent, its task is your ask and you can't talk to the user.
+- Don't commit or push; the lead commits your files.
+- If the task needs a user decision, stop and return the options instead of guessing.
+- End with: files changed, checks run, what was and wasn't verified in Studio, and open questions or requests.

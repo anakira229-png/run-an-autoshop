@@ -31,3 +31,9 @@ Start every session by reading `.github/copilot-instructions.md`, `docs/COORDINA
 2. Show renders (several angles) to the user before exporting a new model.
 3. Run `stylua src tools`, `selene src tools`, and `rojo build -o .private/build-check.rbxl` when you change Luau.
 4. Commit only your files (FBX and blend files under 10 MB; ask before larger), push, and update the coordination file.
+
+## When Delegated by the Lead
+When the Gameplay lead runs you as a subagent, its task is your ask and you can't talk to the user.
+- Don't commit or push; the lead commits your files.
+- Before exporting a new model, save renders from several angles to `.private/renders/<Name>_<view>.png`, stop, and return their paths for the user's approval.
+- End with: files changed, checks run, what was and wasn't verified in Studio, and what the user must do (for example an Import 3D).

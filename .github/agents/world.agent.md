@@ -27,3 +27,9 @@ Start every session by reading `.github/copilot-instructions.md`, `docs/COORDINA
 2. Propose a layout (district sizes, road graph, plot placement) to the user before building something large.
 3. Rebuild in Edit mode: BuildAssets first (Art's tool, run only if templates are missing), then your map tool. Check with screenshots from several viewpoints.
 4. Run `stylua src tools`, `selene src tools`, and `rojo build -o .private/build-check.rbxl`. Commit only your files, push, and update the coordination file. Ask Gameplay to playtest driving, test drives, and call-outs on the new map.
+
+## When Delegated by the Lead
+When the Gameplay lead runs you as a subagent, its task is your ask and you can't talk to the user.
+- Don't commit or push; the lead commits your files.
+- Before building something large, stop and return the layout proposal (and screenshot paths under `.private/screenshots/` if you took any) for the user's approval.
+- End with: files changed, checks run, what was and wasn't verified in Studio, and requests for Gameplay (playtests, contract changes).

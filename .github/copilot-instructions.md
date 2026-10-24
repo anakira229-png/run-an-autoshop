@@ -19,9 +19,9 @@ This Roblox game is about owning an auto shop, repairing customer cars, building
 
 ## Multiple Agents
 
-Four agents (Gameplay, UI, Art, World; defined in `.github/agents/`) work in parallel chat sessions. Read [the coordination file](../docs/COORDINATION.md) before starting and follow it:
+Four agents (Gameplay, UI, Art, World; defined in `.github/agents/`) work in parallel chat sessions, or the Gameplay lead runs the others as subagents from one chat. Read [the coordination file](../docs/COORDINATION.md) before starting and follow it:
 
 - Edit only the files your agent owns; ask other owners through the coordination file's request list.
 - Only the Gameplay agent starts or stops Studio playtests. Others use Studio in Edit mode only, after checking its state and setting the Studio status line.
 - Only the Art agent uses Blender.
-- Pull with rebase before working and before committing; stage only your own paths; run StyLua, Selene, and the Rojo build before every commit. Committing and pushing your own verified files is authorized.
+- Pull with rebase before working and before committing; stage only your own paths; run StyLua, Selene, and the Rojo build before every commit. Committing and pushing your own verified files is authorized; subagents leave commits to the lead.

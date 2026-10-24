@@ -1,6 +1,6 @@
 # Agent Coordination
 
-Four agents work on Run an Autoshop in parallel chat sessions. Read this file before starting work and update it when you take, finish, or request something. Keep entries short.
+Four agents work on Run an Autoshop, either in parallel chat sessions or as subagents that the Gameplay lead runs from one chat. Read this file before starting work and update it when you take, finish, or request something. Keep entries short.
 
 ## Studio Status
 
@@ -62,6 +62,7 @@ In Edit mode, in this order:
 - Stage only paths you own (plus this file). Never `git add -A` across the repository.
 - Before committing, run `stylua src tools`, `selene src tools`, and `rojo build -o .private/build-check.rbxl`. All must pass.
 - Small commits with clear messages. Push right after committing. Never force-push or rewrite shared history.
+- Subagents don't commit. The Gameplay lead checks their work and commits each agent's paths separately.
 - Don't commit `Packages/`, `.private/`, credentials, or player data.
 
 ## Requests
