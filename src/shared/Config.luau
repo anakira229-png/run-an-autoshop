@@ -4,6 +4,12 @@ return {
 	StartingMoney = 0,
 	InteractDistance = 12,
 
+	Work = {
+		MaxDistance = 30,
+		ActionCooldown = 0.1,
+		ShopCooldown = 0.3,
+	},
+
 	Jobs = {
 		FlatTire = { Label = "Flat tire", Payout = 60 },
 		Dent = { Label = "Dented panel", Payout = 80 },

@@ -5,12 +5,13 @@ local UserInputService = game:GetService("UserInputService")
 
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
 local Effects = require(script.Parent.Effects)
+local Store = require(script.Parent.Store)
 
 local SEND_INTERVAL = 0.1
 local RING_SIZE = 240
-local GOOD = Color3.fromRGB(110, 220, 120)
-local BAD = Color3.fromRGB(235, 70, 60)
-local RING = Color3.fromRGB(230, 230, 235)
+local GOOD = Color3.fromRGB(60, 200, 90)
+local BAD = Color3.fromRGB(240, 70, 70)
+local RING = Color3.fromRGB(255, 255, 255)
 
 local player = Players.LocalPlayer
 
@@ -27,9 +28,10 @@ end
 
 local function text(props)
 	props.BackgroundTransparency = 1
-	props.Font = props.Font or Enum.Font.GothamBold
+	props.Font = Enum.Font.FredokaOne
 	props.TextColor3 = props.TextColor3 or Color3.new(1, 1, 1)
-	props.TextStrokeTransparency = 0.5
+	props.TextStrokeColor3 = Color3.fromRGB(35, 30, 50)
+	props.TextStrokeTransparency = 0
 	return make("TextLabel", props)
 end
 
@@ -51,8 +53,7 @@ local title = text({ Position = UDim2.new(-0.5, 0, 0, -70), Size = UDim2.new(2, 
 local hint = text({
 	Position = UDim2.new(-0.5, 0, 0, -40),
 	Size = UDim2.new(2, 0, 0, 22),
-	TextSize = 15,
-	Font = Enum.Font.Gotham,
+	TextSize = 18,
 	Text = "Hold left mouse and circle the cursor around the ring. Too fast slips!",
 })
 local progressFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = GOOD, BorderSizePixel = 0 })
@@ -112,6 +113,7 @@ Remotes.SpinState.OnClientEvent:Connect(function(newState, completed)
 		Effects.play("StepDone", 0.5)
 	end
 	state = newState
+	Store.spinActive:set(state ~= nil)
 	root.Visible = state ~= nil
 	if not state then
 		wrench:Stop()

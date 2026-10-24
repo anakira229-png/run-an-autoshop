@@ -1,9 +1,13 @@
 local Players = game:GetService("Players")
 
-require(script.Hud)
+local WorkView = require(script.WorkView)
+require(script.UI.App).mount({
+	onOverview = WorkView.overview,
+	onLeave = WorkView.leave,
+})
 require(script.SpinGame)
 require(script.CarAudio)
-require(script.Missions)
+require(script.Beacons)
 
 local player = Players.LocalPlayer
 local plots = workspace:WaitForChild("RunAutoshopMap"):WaitForChild("Plots")

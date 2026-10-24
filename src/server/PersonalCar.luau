@@ -9,6 +9,7 @@ local Chassis = require(script.Parent.Chassis)
 local PlayerData = require(script.Parent.PlayerData)
 local Plots = require(script.Parent.Plots)
 local Spin = require(script.Parent.Spin)
+local WorkSession = require(script.Parent.WorkSession)
 
 local assets = ServerStorage:WaitForChild("RunAutoshopAssets")
 local FRONT = { WheelFL = true, WheelFR = true }
@@ -100,40 +101,58 @@ local function assemble(entry, player)
 	player:SetAttribute("CarReady", true)
 end
 
-local function offerInstall(entry, player, plot, slotName)
-	local slot = entry.model.Slots[slotName]
+local function installSlot(entry, player, slot)
+	local slotName = slot.Name
 	local partType = slot:GetAttribute("PartType")
 	local info = Config.Parts[partType]
-	Plots.prompt(plot, slot, "Install " .. info.Label, "Your car", 0, function()
-		local data = PlayerData.get(player)
-		if not data or data.Installed[slotName] or Spin.isBusy(player) then
-			return
+	local data = PlayerData.get(player)
+	if not data or data.Installed[slotName] or Spin.isBusy(player) then
+		return
+	end
+	if (data.Inventory[partType] or 0) < 1 then
+		Remotes.Notify:FireClient(player, "Buy a " .. info.Label .. " in the Garage menu first.")
+		return
+	end
+	Spin.start(player, {
+		label = "Bolt on the " .. info.Label,
+		degrees = Config.Spin.InstallDegrees,
+		anchor = slot,
+		onComplete = function()
+			local current = PlayerData.get(player)
+			if cars[player] ~= entry or not current or current.Installed[slotName] then
+				return
+			end
+			if (current.Inventory[partType] or 0) < 1 then
+				return
+			end
+			PlayerData.addInventory(player, partType, -1)
+			PlayerData.setInstalled(player, slotName)
+			installVisual(entry.model, slotName)
+			if isComplete(current) then
+				assemble(entry, player)
+				WorkSession.exit(player)
+				Remotes.Notify:FireClient(player, "Your car is ready! Hop in the seat to drive.")
+			end
+		end,
+	})
+end
+
+local function openGarage(player)
+	local entry = cars[player]
+	local plot = Plots.get(player)
+	if not entry or not plot or WorkSession.isSeated(player) or Spin.isBusy(player) then
+		return
+	end
+	local pad = Plots.marker(plot, "CarPad").Position
+	if (entry.model:GetPivot().Position - pad).Magnitude > 20 then
+		Remotes.Notify:FireClient(player, "Your car isn't on the pad. Use Reset car in the Garage menu.")
+		return
+	end
+	WorkSession.enter(player, entry.model, "garage", function(p, part)
+		local slots = entry.model:FindFirstChild("Slots")
+		if slots and part.Parent == slots then
+			installSlot(entry, p, part)
 		end
-		if (data.Inventory[partType] or 0) < 1 then
-			Remotes.Notify:FireClient(player, "Buy a " .. info.Label .. " at the parts shelf first.")
-			return
-		end
-		Spin.start(player, {
-			label = "Bolt on the " .. info.Label,
-			degrees = Config.Spin.InstallDegrees,
-			anchor = slot,
-			onComplete = function()
-				local current = PlayerData.get(player)
-				if cars[player] ~= entry or not current or current.Installed[slotName] then
-					return
-				end
-				if (current.Inventory[partType] or 0) < 1 then
-					return
-				end
-				PlayerData.addInventory(player, partType, -1)
-				PlayerData.setInstalled(player, slotName)
-				installVisual(entry.model, slotName)
-				if isComplete(current) then
-					assemble(entry, player)
-					Remotes.Notify:FireClient(player, "Your car is ready! Hop in the seat to drive.")
-				end
-			end,
-		})
 	end)
 end
 
@@ -177,8 +196,6 @@ function PersonalCar.spawn(player)
 	for _, slot in Config.Slots do
 		if data.Installed[slot.Name] then
 			installVisual(model, slot.Name)
-		else
-			offerInstall(entry, player, plot, slot.Name)
 		end
 	end
 	model.Parent = plot
@@ -188,6 +205,9 @@ function PersonalCar.spawn(player)
 end
 
 function PersonalCar.init()
+	for _, plot in workspace.RunAutoshopMap.Plots:GetChildren() do
+		Plots.prompt(plot, plot.Markers.CarPad, "Garage", "Your car", 0.2, openGarage)
+	end
 	Remotes.ResetCar.OnServerEvent:Connect(function(player)
 		local now = os.clock()
 		if lastReset[player] and now - lastReset[player] < Config.Car.ResetCooldown then

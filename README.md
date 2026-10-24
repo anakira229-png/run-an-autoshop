@@ -30,18 +30,19 @@ Take a repair job, fix the customer car, earn money, improve your shop and perso
 
 ## Toolchain
 
-[Rokit](https://github.com/rojo-rbx/rokit) installs the tool versions pinned in `rokit.toml` (Rojo, StyLua, Selene).
+[Rokit](https://github.com/rojo-rbx/rokit) installs the tool versions pinned in `rokit.toml` (Rojo, StyLua, Selene, Wally).
 
 ```powershell
 rokit install                  # once per machine
+wally install                  # installs Fusion into Packages/ (not committed)
 rojo plugin install            # once per machine; restart Studio afterward
 rojo serve                     # then Plugins > Rojo > Connect in Studio
 stylua src tools               # format
-selene src                     # lint
+selene src tools               # lint
 rojo build -o .private/build-check.rbxl   # build check
 ```
 
-Rojo writes only to `ReplicatedStorage.RunAutoshop`, `ServerScriptService.RunAutoshop`, and `StarterPlayerScripts.RunAutoshop`. The map and car templates live in the Studio place. To rebuild them, run [tools/BuildMap.luau](tools/BuildMap.luau) in the Studio command bar.
+Rojo writes only to `ReplicatedStorage.RunAutoshop`, `ReplicatedStorage.Packages`, `ServerScriptService.RunAutoshop`, `ServerStorage.RunAutoshopTools`, and `StarterPlayerScripts.RunAutoshop`. The map and car templates live in the Studio place. To rebuild them in edit mode, run `require(game.ServerStorage.RunAutoshopTools.BuildMap:Clone())()` in the command bar.
 
 ## Version Control
 

@@ -1,0 +1,245 @@
+local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Fusion = require(ReplicatedStorage.Packages.Fusion)
+local Config = require(ReplicatedStorage.RunAutoshop.Config)
+local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
+local Store = require(script.Parent.Store)
+
+local peek = Fusion.peek
+local player = Players.LocalPlayer
+
+local OVERVIEW_DISTANCE = 24
+local FOCUS_DISTANCE = 10
+local MIN_PITCH, MAX_PITCH = math.rad(5), math.rad(80)
+
+local active = nil
+local yaw, pitch = 0, math.rad(28)
+local distance, distanceGoal = OVERVIEW_DISTANCE, OVERVIEW_DISTANCE
+local focus, focusGoal = Vector3.zero, Vector3.zero
+local rotating = false
+local saved = {}
+
+local highlightFolder = Instance.new("Folder")
+highlightFolder.Name = "RunAutoshopWorkHighlights"
+local highlights = {}
+
+local WorkView = {}
+
+local function carCenter()
+	return active.car:GetPivot().Position + Vector3.new(0, 2.5, 0)
+end
+
+local function setCharacterHidden(hidden)
+	local character = player.Character
+	if not character then
+		return
+	end
+	for _, d in character:GetDescendants() do
+		if d:IsA("BasePart") or d:IsA("Decal") then
+			d.LocalTransparencyModifier = hidden and 1 or 0
+		end
+	end
+end
+
+local function resolveTarget(job)
+	if job.target and job.target.Parent then
+		return job.target
+	end
+	local node = job.targetPath and active.car
+	for _, name in job.targetPath or {} do
+		node = node and node:FindFirstChild(name)
+	end
+	return node
+end
+
+local function highlightTargets()
+	local wanted = {}
+	local job = peek(Store.job)
+	local target = active.kind == "job" and job and resolveTarget(job)
+	if target then
+		table.insert(wanted, target)
+	elseif active.kind == "garage" then
+		local slots = active.car:FindFirstChild("Slots")
+		local attrs = peek(Store.attrs)
+		for _, slot in slots and slots:GetChildren() or {} do
+			if (attrs["Inv_" .. slot:GetAttribute("PartType")] or 0) > 0 then
+				table.insert(wanted, slot)
+			end
+		end
+	end
+	local pulse = 0.45 + math.sin(os.clock() * 5) * 0.25
+	for i, part in wanted do
+		local h = highlights[i]
+		if not h then
+			h = Instance.new("Highlight")
+			h.FillColor = Color3.fromRGB(255, 220, 60)
+			h.OutlineColor = Color3.fromRGB(255, 255, 255)
+			h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			h.Parent = highlightFolder
+			highlights[i] = h
+		end
+		h.Adornee = part
+		h.FillTransparency = pulse
+		h.Enabled = true
+	end
+	for i = #wanted + 1, #highlights do
+		highlights[i].Enabled = false
+		highlights[i].Adornee = nil
+	end
+end
+
+local function render(dt)
+	if not active or not active.car.Parent then
+		return
+	end
+	local alpha = math.min(dt * 8, 1)
+	focus = focus:Lerp(focusGoal, alpha)
+	distance += (distanceGoal - distance) * alpha
+	workspace.CurrentCamera.CFrame = CFrame.new(focus)
+		* CFrame.Angles(0, yaw, 0)
+		* CFrame.Angles(-pitch, 0, 0)
+		* CFrame.new(0, 0, distance)
+	highlightTargets()
+end
+
+function WorkView.overview()
+	if active then
+		focusGoal = carCenter()
+		distanceGoal = OVERVIEW_DISTANCE
+	end
+end
+
+local function enter(work)
+	local camera = workspace.CurrentCamera
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	active = work
+	saved.cameraType = camera.CameraType
+	if humanoid then
+		saved.walkSpeed, saved.jumpPower, saved.jumpHeight = humanoid.WalkSpeed, humanoid.JumpPower, humanoid.JumpHeight
+		humanoid.WalkSpeed, humanoid.JumpPower, humanoid.JumpHeight = 0, 0, 0
+	end
+	camera.CameraType = Enum.CameraType.Scriptable
+	ProximityPromptService.Enabled = false
+	setCharacterHidden(true)
+	local look = camera.CFrame.LookVector
+	yaw = math.atan2(-look.X, -look.Z)
+	pitch = math.rad(28)
+	focus = carCenter()
+	focusGoal = focus
+	distance, distanceGoal = OVERVIEW_DISTANCE, OVERVIEW_DISTANCE
+	highlightFolder.Parent = workspace
+	RunService:BindToRenderStep("RunAutoshopWorkView", Enum.RenderPriority.Camera.Value + 1, render)
+end
+
+local function exit()
+	if not active then
+		return
+	end
+	active = nil
+	rotating = false
+	RunService:UnbindFromRenderStep("RunAutoshopWorkView")
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	local camera = workspace.CurrentCamera
+	camera.CameraType = saved.cameraType or Enum.CameraType.Custom
+	ProximityPromptService.Enabled = true
+	setCharacterHidden(false)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid and saved.walkSpeed then
+		humanoid.WalkSpeed, humanoid.JumpPower, humanoid.JumpHeight = saved.walkSpeed, saved.jumpPower, saved.jumpHeight
+	end
+	highlightFolder.Parent = nil
+end
+
+function WorkView.leave()
+	Remotes.WorkExit:FireServer()
+	exit()
+	Store.work:set(nil)
+end
+
+local function isTarget(part)
+	for _, h in highlights do
+		if h.Enabled and h.Adornee and (part == h.Adornee or part:IsDescendantOf(h.Adornee)) then
+			return h.Adornee
+		end
+	end
+	return nil
+end
+
+local function click(position)
+	local ray = workspace.CurrentCamera:ViewportPointToRay(position.X, position.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { active.car }
+	local hit = workspace:Raycast(ray.Origin, ray.Direction * 200, params)
+	if not hit then
+		return
+	end
+	Remotes.WorkAction:FireServer(hit.Instance)
+	local target = isTarget(hit.Instance)
+	if target then
+		focusGoal = target:IsA("BasePart") and target.Position or target:GetPivot().Position
+		distanceGoal = FOCUS_DISTANCE
+	end
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not active then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		rotating = true
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 and not processed and not peek(Store.spinActive) then
+		click(UserInputService:GetMouseLocation())
+	elseif input.KeyCode == Enum.KeyCode.F then
+		WorkView.overview()
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 and rotating then
+		rotating = false
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not active then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
+		yaw -= input.Delta.X * 0.008
+		pitch = math.clamp(pitch + input.Delta.Y * 0.006, MIN_PITCH, MAX_PITCH)
+	elseif input.UserInputType == Enum.UserInputType.MouseWheel then
+		distanceGoal = math.clamp(distanceGoal - input.Position.Z * 3, 6, 45)
+	end
+end)
+
+Store.scope:Observer(Store.work):onChange(function()
+	local work = peek(Store.work)
+	if work and (not active or active.car ~= work.car) then
+		if active then
+			exit()
+		end
+		enter(work)
+	elseif not work then
+		exit()
+	end
+end)
+
+-- Leave the view if the character walks or gets moved too far away.
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if active and root and (root.Position - active.car:GetPivot().Position).Magnitude > Config.Work.MaxDistance then
+			WorkView.leave()
+		end
+	end
+end)
+
+return WorkView

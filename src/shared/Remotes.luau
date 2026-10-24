@@ -13,6 +13,11 @@ local NAMES = {
 	"CalloutOffer",
 	"CalloutRespond",
 	"CalloutState",
+	"WorkState",
+	"WorkAction",
+	"WorkExit",
+	"ShopBuy",
+	"OpenPanel",
 }
 local FOLDER_NAME = "RunAutoshopRemotes"
 

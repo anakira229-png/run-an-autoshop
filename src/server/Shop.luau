@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.RunAutoshop.Config)
@@ -6,7 +7,7 @@ local PersonalCar = require(script.Parent.PersonalCar)
 local PlayerData = require(script.Parent.PlayerData)
 local Plots = require(script.Parent.Plots)
 
-local shelfPrompts = {}
+local lastPurchase = {}
 
 local Shop = {}
 
@@ -73,28 +74,6 @@ local function onShelf(player, partType)
 	end
 end
 
-function Shop.refresh(player)
-	local plot = Plots.get(player)
-	if not plot or not shelfPrompts[plot] or not PlayerData.get(player) then
-		return
-	end
-	for partType, prompt in shelfPrompts[plot] do
-		local info = Config.Parts[partType]
-		local offer, tier = shelfOffer(player, partType)
-		if offer == "buy" then
-			prompt.ActionText = "Buy $" .. info.Price
-			prompt.ObjectText = info.Label
-		elseif offer == "upgrade" then
-			prompt.ActionText = "Upgrade $" .. Config.Tiers[partType][tier].Price
-			prompt.ObjectText = Config.Tiers.Names[tier] .. " " .. info.Label
-		else
-			local current = PlayerData.tier(player, partType)
-			prompt.ActionText = "Check"
-			prompt.ObjectText = (Config.Tiers[partType] and Config.Tiers.Names[current] .. " " or "") .. info.Label
-		end
-	end
-end
-
 local function buyUpgrade(player, name)
 	local info = Config.Upgrades[name]
 	if not PlayerData.get(player) then
@@ -111,27 +90,28 @@ end
 
 function Shop.init()
 	for _, plot in workspace.RunAutoshopMap.Plots:GetChildren() do
-		shelfPrompts[plot] = {}
-		for _, item in plot.PartsShelf.Items:GetChildren() do
-			local partType = item.Name
-			local info = Config.Parts[partType]
-			shelfPrompts[plot][partType] = Plots.prompt(
-				plot,
-				item,
-				"Buy $" .. info.Price,
-				info.Label,
-				0.3,
-				function(player)
-					onShelf(player, partType)
-				end
-			)
-		end
-		local upgrade = Config.Upgrades.BetterTools
-		Plots.prompt(plot, plot.ToolBench.Toolbox, "Buy $" .. upgrade.Price, upgrade.Label, 0.3, function(player)
-			buyUpgrade(player, "BetterTools")
+		Plots.prompt(plot, plot.PartsShelf.Table, "Open Garage", "Parts & upgrades", 0, function(player)
+			Remotes.OpenPanel:FireClient(player, "garage")
+		end)
+		Plots.prompt(plot, plot.ToolBench.Toolbox, "Open Upgrades", "Shop tools", 0, function(player)
+			Remotes.OpenPanel:FireClient(player, "upgrades")
 		end)
 	end
-	PlayerData.onChanged(Shop.refresh)
+	Remotes.ShopBuy.OnServerEvent:Connect(function(player, kind, key)
+		local now = os.clock()
+		if lastPurchase[player] and now - lastPurchase[player] < Config.Work.ShopCooldown then
+			return
+		end
+		lastPurchase[player] = now
+		if kind == "part" and type(key) == "string" and Config.Parts[key] then
+			onShelf(player, key)
+		elseif kind == "upgrade" and type(key) == "string" and Config.Upgrades[key] then
+			buyUpgrade(player, key)
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		lastPurchase[player] = nil
+	end)
 end
 
 return Shop

@@ -81,6 +81,7 @@ local function startCall(player, offer)
 	car.Parent = folder
 	calls[player] = { state = state, spot = offer.spot, expires = os.clock() + cfg.ExpireTime }
 	RepairJobs.begin(state)
+	RepairJobs.addWorkPrompt(state, "Work on car")
 	blinkHazards(state)
 	Remotes.CalloutState:FireClient(
 		player,

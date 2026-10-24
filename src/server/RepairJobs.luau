@@ -13,6 +13,7 @@ local PlayerData = require(script.Parent.PlayerData)
 local Plots = require(script.Parent.Plots)
 local Route = require(script.Parent.Route)
 local Spin = require(script.Parent.Spin)
+local WorkSession = require(script.Parent.WorkSession)
 
 local assets = ServerStorage:WaitForChild("RunAutoshopAssets")
 local JOB_TYPES = { "FlatTire", "Dent" }
@@ -90,9 +91,29 @@ local function showNuts(nuts, fraction)
 end
 
 local function sendStep(state, text)
+	if text then
+		state.lastHint = text
+	end
 	local owner = state.owner()
 	if owner then
-		Remotes.JobUpdate:FireClient(owner, { label = state.job.Label, payout = state.job.Payout, step = text })
+		-- New parts may not have streamed in yet, so also send a name path the client can resolve later.
+		local path
+		if state.target then
+			path = {}
+			local node = state.target.part
+			while node and node ~= state.car do
+				table.insert(path, 1, node.Name)
+				node = node.Parent
+			end
+		end
+		Remotes.JobUpdate:FireClient(owner, {
+			label = state.job.Label,
+			payout = state.job.Payout,
+			step = text,
+			target = state.target and state.target.part,
+			targetPath = path,
+			car = state.car,
+		})
 	end
 end
 
@@ -101,6 +122,37 @@ local function clearPrompt(state)
 		state.prompt:Destroy()
 		state.prompt = nil
 	end
+end
+
+-- run(player) fires when the owner clicks part (or a descendant) in the work view.
+local function setTarget(state, part, hint, run)
+	state.target = { part = part, run = run }
+	sendStep(state, hint)
+end
+
+local function onWorkClick(state, player, part)
+	if state.owner() ~= player or not alive(state) then
+		return
+	end
+	if state.activeDent and part == state.activeDent then
+		state.dentHit = true
+		return
+	end
+	local target = state.target
+	if not target or Spin.isBusy(player) or state.dentRunning then
+		return
+	end
+	if part == target.part or part:IsDescendantOf(target.part) then
+		state.target = nil
+		target.run(player)
+	end
+end
+
+local function enterWork(state, player)
+	WorkSession.enter(player, state.car, "job", function(p, part)
+		onWorkClick(state, p, part)
+	end)
+	sendStep(state, state.lastHint)
 end
 
 local function tweenTo(state, target)
@@ -121,27 +173,18 @@ local function tweenTo(state, target)
 	return alive(state)
 end
 
-local function holdStep(state, part, actionText, hint, onDone)
-	sendStep(state, hint)
-	state.prompt = Plots.ownerPrompt(state.owner, part, actionText, state.job.Label, 0.5, function(player)
-		if Spin.isBusy(player) or not state.prompt then
-			return
-		end
-		clearPrompt(state)
+local function holdStep(state, part, hint, onDone)
+	setTarget(state, part, hint, function()
 		onDone()
 	end)
 end
 
-local function spinStep(state, part, actionText, hint, onProgress, onDone)
-	sendStep(state, hint)
+local function spinStep(state, part, hint, onProgress, onDone)
 	local function offer()
 		if not alive(state) then
 			return
 		end
-		state.prompt = Plots.ownerPrompt(state.owner, part, actionText, state.job.Label, 0, function(player)
-			if not state.prompt then
-				return
-			end
+		setTarget(state, part, hint, function(player)
 			local started = Spin.start(player, {
 				label = hint,
 				degrees = Config.Spin.LugDegrees,
@@ -158,8 +201,8 @@ local function spinStep(state, part, actionText, hint, onProgress, onDone)
 					offer()
 				end,
 			})
-			if started then
-				clearPrompt(state)
+			if not started then
+				offer()
 			end
 		end)
 	end
@@ -171,7 +214,12 @@ local function finish(state)
 		return
 	end
 	state.phase = "Done"
+	state.target = nil
 	clearPrompt(state)
+	if state.workPrompt then
+		state.workPrompt:Destroy()
+		state.workPrompt = nil
+	end
 
 	local stars = 1
 	if state.misses <= Config.MaxMisses[3] then
@@ -206,6 +254,9 @@ local function finish(state)
 	sparkle:Emit(40)
 
 	task.wait(1.5)
+	if owner and WorkSession.isIn(owner, car) then
+		WorkSession.exit(owner)
+	end
 	if alive(state) then
 		state.onFinished(state)
 	end
@@ -343,10 +394,10 @@ end
 local function runFlatTire(state)
 	local car = state.car
 	local wheel = car[state.wheelName]
-	spinStep(state, wheel, "Loosen lug nuts", "Loosen the lug nuts on the flat wheel.", function(f)
+	spinStep(state, wheel, "Click the flat wheel and spin off the lug nuts.", function(f)
 		showNuts(state.nuts, 1 - f)
 	end, function()
-		holdStep(state, wheel, "Remove wheel", "Pull off the flat wheel.", function()
+		holdStep(state, wheel, "Click the wheel to pull it off.", function()
 			local body = car.Body
 			wheel:FindFirstChild("WeldConstraint"):Destroy()
 			wheel.Anchored = true
@@ -377,7 +428,7 @@ local function runFlatTire(state)
 			)
 			ghost.Anchored = true
 			ghost.Parent = car
-			holdStep(state, ghost, "Fit new wheel", "Fit a new wheel.", function()
+			holdStep(state, ghost, "Click the glowing spot to fit a new wheel.", function()
 				ghost:Destroy()
 				car:PivotTo(level)
 				fitCFrame = body.CFrame * state.wheelOffset
@@ -389,7 +440,7 @@ local function runFlatTire(state)
 				weld(body, newWheel)
 				newWheel.Parent = car
 				local nuts = addNuts(newWheel, state.side, 1)
-				spinStep(state, newWheel, "Tighten lug nuts", "Tighten the lug nuts.", function(f)
+				spinStep(state, newWheel, "Click the new wheel and spin the lug nuts tight.", function(f)
 					showNuts(nuts, f)
 				end, function()
 					finish(state)
@@ -416,31 +467,23 @@ local function dentGame(state, player, retry)
 	state.dentRunning = true
 	report(true)
 	while alive(state) and #state.dents > 0 do
-		if not Plots.isNear(player, panel.Position, Config.Dent.MaxDistance) then
+		if not WorkSession.isIn(player, state.car) then
 			state.dentRunning = false
 			report(false)
-			Remotes.Notify:FireClient(player, "Stopped: you moved away from the work.")
 			retry()
 			return
 		end
 		local dent = state.dents[math.random(#state.dents)]
 		dent.Color = DENT_ACTIVE
 		dent.Material = Enum.Material.Neon
-		local hit = false
-		local detector = Instance.new("ClickDetector")
-		detector.MaxActivationDistance = Config.Dent.MaxDistance
-		detector.MouseClick:Connect(function(clicker)
-			if clicker == player then
-				hit = true
-			end
-		end)
-		detector.Parent = dent
+		state.dentHit = false
+		state.activeDent = dent
 		local deadline = os.clock() + lifetime
-		while not hit and os.clock() < deadline and alive(state) do
+		while not state.dentHit and os.clock() < deadline and alive(state) do
 			task.wait()
 		end
-		detector:Destroy()
-		if hit then
+		state.activeDent = nil
+		if state.dentHit then
 			table.remove(state.dents, table.find(state.dents, dent))
 			Effects.sound(panel, Sounds.DentPop, 0.8)
 			dent:Destroy()
@@ -467,12 +510,7 @@ local function runDent(state)
 		if not alive(state) then
 			return
 		end
-		sendStep(state, "Hammer out the dents on the highlighted panel.")
-		state.prompt = Plots.ownerPrompt(state.owner, state.panel, "Hammer dents", state.job.Label, 0, function(player)
-			if Spin.isBusy(player) or state.dentRunning or not state.prompt then
-				return
-			end
-			clearPrompt(state)
+		setTarget(state, state.panel, "Click the dented panel to start hammering.", function(player)
 			sendStep(state, "Click each glowing dent before it fades.")
 			task.spawn(dentGame, state, player, offer)
 		end)
@@ -591,6 +629,29 @@ function RepairJobs.begin(state)
 	end
 end
 
+-- Single prompt on the car that starts the job if needed and opens the work view.
+function RepairJobs.addWorkPrompt(state, actionText)
+	state.workPrompt = Plots.ownerPrompt(
+		state.owner,
+		state.car.Body,
+		actionText,
+		state.job.Label .. " - $" .. state.job.Payout,
+		0.2,
+		function(player)
+			if WorkSession.isSeated(player) or Spin.isBusy(player) then
+				return
+			end
+			if state.phase == "Waiting" then
+				RepairJobs.begin(state)
+			end
+			if state.phase == "Active" then
+				state.workPrompt.ActionText = "Work on car"
+				enterWork(state, player)
+			end
+		end
+	)
+end
+
 function RepairJobs.cancel(state)
 	state.active = false
 	if state.chassis then
@@ -638,19 +699,8 @@ function RepairJobs.spawnCustomer(plot)
 
 	Effects.sound(car.Body, Sounds.Horn, 0.5)
 	state.phase = "Waiting"
-	sendStep(state, "A customer is waiting. Accept the job at their car.")
-	state.prompt = Plots.prompt(
-		plot,
-		car.Body,
-		"Accept job",
-		state.job.Label .. " - $" .. state.job.Payout,
-		0.3,
-		function()
-			if state.phase == "Waiting" then
-				RepairJobs.begin(state)
-			end
-		end
-	)
+	sendStep(state, "A customer is waiting. Start the job at their car.")
+	RepairJobs.addWorkPrompt(state, "Start job")
 end
 
 function RepairJobs.start(plot)
