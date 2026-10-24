@@ -24,14 +24,14 @@ local CENTERS = { -300, -180, -60, 60, 180, 300 }
 
 -- Street centerlines. EW streets run along X at z = c; NS streets run along Z at x = c.
 local STREETS = {
-	{ dir = "EW", c = 0, a = -423, b = 423, name = "Main Street" },
+	{ dir = "EW", c = 0, a = -422, b = 422, name = "Main Street" },
 	{ dir = "EW", c = 120, a = -360, b = 360, name = "North Street" },
 	{ dir = "EW", c = -120, a = -360, b = 360, name = "South Street" },
 	{ dir = "EW", c = 240, a = -360, b = 360, name = "Park Avenue" },
 	{ dir = "EW", c = -240, a = -360, b = 240, name = "Market Street" },
 	{ dir = "EW", c = 360, a = -360, b = 360, name = "North Perimeter" },
 	{ dir = "EW", c = -360, a = -360, b = 360, name = "South Perimeter" },
-	{ dir = "NS", c = 0, a = -423, b = 423, name = "Center Boulevard" },
+	{ dir = "NS", c = 0, a = -422, b = 422, name = "Center Boulevard" },
 	{ dir = "NS", c = -120, a = -360, b = 240, name = "West Avenue" },
 	{ dir = "NS", c = 120, a = -360, b = 240, name = "East Avenue" },
 	{ dir = "NS", c = -240, a = -360, b = 360, name = "Maple Avenue" },
@@ -339,6 +339,15 @@ local function inDowntown(x, z)
 	return math.abs(x) <= 252 and math.abs(z) <= 252
 end
 
+-- Streetlights stay out of the shop driveways (aprons) and the junkyard gate.
+local function lampBlocked(x, z)
+	local ax, az = math.abs(x), math.abs(z)
+	if ax >= 20 and ax <= 100 and az >= 12 and az <= 20 then
+		return true
+	end
+	return x >= 284 and x <= 316 and z >= -140 and z <= -128
+end
+
 local function buildStreets(parent, props)
 	local roads = folder(parent, "Roads")
 	local stops = {}
@@ -410,7 +419,9 @@ local function buildStreets(parent, props)
 				local base = ew and Vector3.new(t, 0, s.c + offset) or Vector3.new(s.c + offset, 0, t)
 				local toRoad = ew and Vector3.new(0, 0, -side) or Vector3.new(-side, 0, 0)
 				local lit = inDowntown(base.X, base.Z) or math.abs(t) % 180 < 20
-				lamp(props, base, toRoad, lit)
+				if not lampBlocked(base.X, base.Z) then
+					lamp(props, base, toRoad, lit)
+				end
 			end
 		end
 	end
@@ -482,7 +493,10 @@ local function buildHighway(parent, props)
 	ribbon(hw, "Barrier", 0, 1.6, ROAD_THICK, 2.6, rgb(190, 188, 182), Enum.Material.Concrete, nil, { gap = 26 })
 	local noCollide = { CanCollide = false }
 	for _, o in { -27, 27 } do
-		ribbon(hw, "Line", o, 0.6, ROAD_THICK, 0.05, WHITE, Enum.Material.SmoothPlastic, noCollide)
+		-- The inner edge line stops at the Main Street and Center Boulevard mouths.
+		ribbon(hw, "Line", o, 0.6, ROAD_THICK, 0.05, WHITE, Enum.Material.SmoothPlastic, noCollide, {
+			gap = o < 0 and 13 or nil,
+		})
 	end
 	for _, o in { -16, 16 } do
 		ribbon(
@@ -586,14 +600,18 @@ local function tower(parent, rng, cx, cz, w, d, h, color)
 			)
 		end
 	end
-	part(
-		m,
-		"Vent",
-		Vector3.new(6, 3, 6),
-		CFrame.new(cx + rng:NextNumber(-w / 4, w / 4), PAD_TOP + h + 2.5, cz + rng:NextNumber(-d / 4, d / 4)),
-		rgb(110, 112, 118),
-		Enum.Material.Metal
-	)
+	local ventX = cx + rng:NextNumber(-w / 4, w / 4)
+	local ventZ = cz + rng:NextNumber(-d / 4, d / 4)
+	if h <= 70 then
+		part(
+			m,
+			"Vent",
+			Vector3.new(6, 3, 6),
+			CFrame.new(ventX, PAD_TOP + h + 2.5, ventZ),
+			rgb(110, 112, 118),
+			Enum.Material.Metal
+		)
+	end
 	if h > 70 then
 		part(
 			m,
@@ -798,8 +816,8 @@ local function house(parent, rng, pos, front)
 	part(
 		m,
 		"Driveway",
-		Vector3.new(6, 0.1, 8.4),
-		at(-6.5, LAWN_TOP + 0.05, -12.2),
+		Vector3.new(6, 0.1, 8),
+		at(-6.5, LAWN_TOP + 0.05, -12),
 		rgb(120, 120, 122),
 		Enum.Material.Concrete,
 		{
@@ -886,7 +904,7 @@ local function warehouse(parent, rng, cx, cz, front)
 			m,
 			"DockLight",
 			Vector3.new(1, 0.5, 0.4),
-			at(x, PAD_TOP + 15.4, -30.2),
+			at(x, PAD_TOP + 15.4, -30.45),
 			WARM,
 			Enum.Material.Neon,
 			{ CanCollide = false }
@@ -1112,7 +1130,7 @@ end
 local function wreck(parent, rng, x, level, z, yaw)
 	local rust =
 		pick(rng, { rgb(140, 85, 55), rgb(120, 120, 118), rgb(95, 110, 130), rgb(150, 60, 50), rgb(175, 160, 120) })
-	local frame = CFrame.new(x, PAD_TOP + level * 3.6, z) * CFrame.Angles(0, yaw, 0)
+	local frame = CFrame.new(x, PAD_TOP + level * 4.5, z) * CFrame.Angles(0, yaw, 0)
 	if placeKit(parent, "WreckCar", frame, nil, rust) then
 		return
 	end
@@ -1132,8 +1150,8 @@ local function junkyard(parent, props)
 	local rng = Random.new(404)
 	local x0, x1, z0, z1 = 252, 348, -348, -132
 	slab(parent, "Ground", x0, x1, z0, z1, PAD_TOP, PAD_TOP, rgb(95, 80, 62), Enum.Material.Ground)
-	-- The fence sits just inside the lot so posts never reach into the streets around it.
-	local fx0, fx1, fz0, fz1 = x0 + 1.5, x1 - 1.5, z0 + 1.5, z1 - 1.5
+	-- The fence sits 3 studs inside the lot so posts clear the streetlights along the surrounding streets.
+	local fx0, fx1, fz0, fz1 = x0 + 3, x1 - 3, z0 + 3, z1 - 3
 	local fence = rgb(150, 155, 160)
 	local function fenceRun(ax, az, bx, bz)
 		local a, b = Vector3.new(ax, 0, az), Vector3.new(bx, 0, bz)
@@ -1227,13 +1245,16 @@ local function junkyard(parent, props)
 	for _ = 1, 10 do
 		local x = rng:NextNumber(284, 316)
 		local z = rng:NextNumber(-340, -220)
+		local size = Vector3.new(rng:NextNumber(2, 6), rng:NextNumber(0.5, 2), rng:NextNumber(2, 6))
 		part(
 			parent,
 			"Scrap",
-			Vector3.new(rng:NextNumber(2, 6), rng:NextNumber(0.5, 2), rng:NextNumber(2, 6)),
-			CFrame.new(x, PAD_TOP + 0.5, z) * CFrame.Angles(0, rng:NextNumber(0, 6.28), rng:NextNumber(-0.3, 0.3)),
+			size,
+			CFrame.new(x, PAD_TOP + size.Y / 2 - 0.1, z)
+				* CFrame.Angles(0, rng:NextNumber(0, 6.28), rng:NextNumber(-0.3, 0.3)),
 			rgb(110, 90, 75),
-			Enum.Material.CorrodedMetal
+			Enum.Material.CorrodedMetal,
+			{ CanCollide = false }
 		)
 	end
 	for _ = 1, 6 do
@@ -1244,7 +1265,8 @@ local function junkyard(parent, props)
 			1,
 			CFrame.new(rng:NextNumber(272, 328), PAD_TOP + 0.5, rng:NextNumber(-160, -150)) * CFrame.Angles(0, 0, 0),
 			rgb(30, 30, 32),
-			Enum.Material.SmoothPlastic
+			Enum.Material.SmoothPlastic,
+			{ CanCollide = false }
 		)
 	end
 	-- Gantry crane over a car crusher at the back of the yard.
@@ -1281,13 +1303,13 @@ local function junkyard(parent, props)
 	part(
 		parent,
 		"CraneCable",
-		Vector3.new(0.4, 14, 0.4),
-		CFrame.new(300, PAD_TOP + 21, -324),
+		Vector3.new(0.4, 11, 0.4),
+		CFrame.new(300, PAD_TOP + 22.2, -324),
 		DARK,
 		Enum.Material.Metal
 	)
-	cylinder(parent, "CraneMagnet", 8, 1.4, CFrame.new(300, PAD_TOP + 13.3, -324), DARK, Enum.Material.Metal)
-	wreck(parent, rng, 300, 3.1, -324, 0.4)
+	cylinder(parent, "CraneMagnet", 8, 1.4, CFrame.new(300, PAD_TOP + 16, -324), DARK, Enum.Material.Metal)
+	wreck(parent, rng, 300, 2.4, -324, 0.4)
 	part(
 		parent,
 		"Crusher",
@@ -1508,7 +1530,7 @@ local function dealership(parent, rng, cx, cz)
 	)
 	sign(
 		m,
-		CFrame.lookAt(Vector3.new(cx, PAD_TOP + 18.5, cz - 14), Vector3.new(cx, PAD_TOP + 18.5, cz - 13)),
+		CFrame.lookAt(Vector3.new(cx, PAD_TOP + 18, cz - 14), Vector3.new(cx, PAD_TOP + 18, cz - 13)),
 		Vector3.new(36, 6, 1),
 		"AUTO SALES",
 		rgb(30, 30, 36),
@@ -1519,11 +1541,11 @@ local function dealership(parent, rng, cx, cz)
 			m,
 			"Platform",
 			Vector3.new(9, 0.6, 15),
-			CFrame.new(cx + i * 15, LAWN_TOP + 0.4, cz + 2),
+			CFrame.new(cx + i * 15, LAWN_TOP + 0.3, cz + 2),
 			rgb(200, 200, 195),
 			Enum.Material.Concrete
 		)
-		parkedCar(m, rng, cx + i * 15, cz + 2, LAWN_TOP + 0.7, math.pi + rng:NextNumber(-0.2, 0.2))
+		parkedCar(m, rng, cx + i * 15, cz + 2, LAWN_TOP + 0.6, math.pi + rng:NextNumber(-0.2, 0.2))
 		part(
 			m,
 			"PriceTag",
@@ -1576,7 +1598,7 @@ local function dinerAndTires(parent, rng, cx, cz)
 	)
 	sign(
 		m,
-		CFrame.lookAt(Vector3.new(dx, PAD_TOP + 15, cz - 20), Vector3.new(dx, PAD_TOP + 15, cz - 19)),
+		CFrame.lookAt(Vector3.new(dx, PAD_TOP + 14.5, cz - 20), Vector3.new(dx, PAD_TOP + 14.5, cz - 19)),
 		Vector3.new(20, 5, 1),
 		"DINER",
 		rgb(30, 30, 36),
@@ -1687,18 +1709,18 @@ local function parkHalf(parent, props, cx, east)
 	path(cx - 3, cx + 3, cz - 43, cz + 43)
 	local avoid
 	if east then
-		local px, pz = cx + 40, cz + 12
+		local px, pz = cx + 45, cz + 23
 		cylinder(
 			parent,
 			"PondEdge",
-			50,
+			38,
 			0.3,
 			CFrame.new(px, LAWN_TOP + 0.1, pz),
 			rgb(215, 200, 160),
 			Enum.Material.Sand,
 			{ CanCollide = false }
 		)
-		cylinder(parent, "Pond", 44, 0.3, CFrame.new(px, LAWN_TOP + 0.2, pz), rgb(70, 150, 205), Enum.Material.Glass, {
+		cylinder(parent, "Pond", 34, 0.3, CFrame.new(px, LAWN_TOP + 0.2, pz), rgb(70, 150, 205), Enum.Material.Glass, {
 			Transparency = 0.25,
 			CanCollide = false,
 		})
@@ -1751,7 +1773,7 @@ local function parkHalf(parent, props, cx, east)
 			Enum.Material.Slate
 		)
 		avoid = function(x, z)
-			return (x - px) ^ 2 + (z - pz) ^ 2 < 32 ^ 2
+			return (x - px) ^ 2 + (z - pz) ^ 2 < 26 ^ 2
 				or math.abs(z - cz) < 6
 				or math.abs(x - cx) < 6
 				or (math.abs(x - gx) < 12 and math.abs(z - gz) < 12)
@@ -1766,7 +1788,7 @@ local function parkHalf(parent, props, cx, east)
 			fx + 40,
 			fz - 24,
 			fz + 24,
-			LAWN_TOP + 0.05,
+			LAWN_TOP + 0.03,
 			0.1,
 			rgb(70, 150, 70),
 			Enum.Material.Grass,
@@ -1780,7 +1802,7 @@ local function parkHalf(parent, props, cx, east)
 				x1,
 				z0,
 				z1,
-				LAWN_TOP + 0.12,
+				LAWN_TOP + 0.08,
 				0.05,
 				WHITE,
 				Enum.Material.SmoothPlastic,
@@ -1850,6 +1872,10 @@ local function parkHalf(parent, props, cx, east)
 				Enum.Material.Plastic
 			)
 		end
+		for _, dx in { -14, 14 } do
+			bench(parent, fx + dx, fz - 28, 0)
+			bench(parent, fx + dx, fz + 28, math.pi)
+		end
 		avoid = function(x, z)
 			return (math.abs(x - fx) < 46 and math.abs(z - fz) < 30)
 				or math.abs(z - cz) < 6
@@ -1858,12 +1884,15 @@ local function parkHalf(parent, props, cx, east)
 		end
 	end
 	scatterTrees(props, rng, cx, cz, 100, 40, 34, avoid)
-	for _, s in { -1, 1 } do
-		bench(parent, cx + s * 25, cz - 6.5, math.pi)
-		bench(parent, cx + s * 25, cz + 6.5, 0)
+	if east then
+		for _, s in { -1, 1 } do
+			bench(parent, cx + s * 25, cz - 6.5, math.pi)
+			bench(parent, cx + s * 25, cz + 6.5, 0)
+		end
 	end
-	for _, p in { { -60, 0 }, { 60, 0 } } do
-		lamp(props, Vector3.new(cx + p[1], LAWN_TOP, cz + 4), Vector3.new(0, 0, -1), true)
+	-- Keep the lamp off the pitch's goal posts in the west half.
+	for _, dx in east and { -60, 60 } or { -68, 60 } do
+		lamp(props, Vector3.new(cx + dx, LAWN_TOP, cz + 4), Vector3.new(0, 0, -1), true)
 	end
 end
 

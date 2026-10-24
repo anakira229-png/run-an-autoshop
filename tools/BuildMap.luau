@@ -37,26 +37,53 @@ local function buildPlot(parent, index, pivot)
 
 	part(model, "Floor", Vector3.new(80, 0.2, 80), at(0, 0.1, 0), concrete, Enum.Material.Concrete)
 	part(model, "Apron", Vector3.new(80, 0.2, 8), at(0, 0.1, -44), ASPHALT, Enum.Material.Asphalt)
+	-- Painted bay and pad outlines and the lift plate are flat decals (0.05 thick, no collision), so wheels never meet a lip.
+	local bayYellow = Color3.fromRGB(240, 200, 40)
+	local padBlue = Color3.fromRGB(60, 160, 240)
+	local flat = { CanCollide = false }
+	part(
+		model,
+		"LiftPlate",
+		Vector3.new(13.4, 0.05, 20),
+		at(-18, 0.225, 8),
+		Color3.fromRGB(78, 80, 86),
+		Enum.Material.DiamondPlate,
+		flat
+	)
 	for _, x in { -26.5, -9.5 } do
 		part(
 			model,
 			"BayLine",
 			Vector3.new(0.5, 0.05, 26),
 			at(x, 0.225, 8),
-			Color3.fromRGB(240, 200, 40),
+			bayYellow,
 			Enum.Material.SmoothPlastic,
-			{ CanCollide = false }
+			flat
+		)
+	end
+	for _, z in { -4.75, 20.75 } do
+		part(
+			model,
+			"BayLine",
+			Vector3.new(16.5, 0.05, 0.5),
+			at(-18, 0.225, z),
+			bayYellow,
+			Enum.Material.SmoothPlastic,
+			flat
 		)
 	end
 	for _, x in { 9.5, 26.5 } do
+		part(model, "PadLine", Vector3.new(0.5, 0.05, 26), at(x, 0.225, 8), padBlue, Enum.Material.SmoothPlastic, flat)
+	end
+	for _, z in { -4.75, 20.75 } do
 		part(
 			model,
 			"PadLine",
-			Vector3.new(0.5, 0.05, 26),
-			at(x, 0.225, 8),
-			Color3.fromRGB(60, 160, 240),
+			Vector3.new(16.5, 0.05, 0.5),
+			at(18, 0.225, z),
+			padBlue,
 			Enum.Material.SmoothPlastic,
-			{ CanCollide = false }
+			flat
 		)
 	end
 
@@ -65,7 +92,7 @@ local function buildPlot(parent, index, pivot)
 	part(model, "RightWall", Vector3.new(2, 18, 44), at(39, 9.2, 17), wall, Enum.Material.Brick)
 	part(model, "Roof", Vector3.new(82, 1, 47), at(0, 18.7, 16.5), Color3.fromRGB(90, 90, 95), Enum.Material.Metal)
 
-	local sign = part(model, "Sign", Vector3.new(30, 5, 1), at(0, 15.5, -6.5), Color3.fromRGB(30, 30, 35))
+	local sign = part(model, "Sign", Vector3.new(30, 5, 1), at(0, 15.7, -6.5), Color3.fromRGB(30, 30, 35))
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Front
 	gui.PixelsPerStud = 40
@@ -126,15 +153,15 @@ local function buildPlot(parent, index, pivot)
 		light.Color = warm
 		light.Parent = p
 	end
-	lamp(Vector3.new(1.2, 0.3, 16), at(-18, 17.9, 8), 22)
-	lamp(Vector3.new(1.2, 0.3, 16), at(18, 17.9, 8), 22)
-	lamp(Vector3.new(40, 0.3, 1.2), at(0, 17.9, 31), 20)
+	lamp(Vector3.new(1.2, 0.3, 16), at(-18, 18.05, 8), 22)
+	lamp(Vector3.new(1.2, 0.3, 16), at(18, 18.05, 8), 22)
+	lamp(Vector3.new(40, 0.3, 1.2), at(0, 18.05, 31), 20)
 
 	part(
 		props,
 		"OilStain",
 		Vector3.new(0.02, 5, 5),
-		at(-18, 0.21, 6) * CFrame.Angles(0, 0, math.pi / 2),
+		at(-18, 0.26, 6) * CFrame.Angles(0, 0, math.pi / 2),
 		Color3.fromRGB(25, 25, 28),
 		nil,
 		{
@@ -150,7 +177,7 @@ local function buildPlot(parent, index, pivot)
 				props,
 				"Tire",
 				Vector3.new(0.9, 2.6, 2.6),
-				at(-34, 0.65 + i * 0.9, z) * CFrame.Angles(0, 0, math.pi / 2),
+				at(-36.5, 0.65 + i * 0.9, z) * CFrame.Angles(0, 0, math.pi / 2),
 				Color3.fromRGB(30, 30, 32),
 				nil,
 				{
@@ -164,7 +191,7 @@ local function buildPlot(parent, index, pivot)
 			props,
 			"Drum",
 			Vector3.new(3.2, 2, 2),
-			at(34, 1.8, -2 + i * 2.4) * CFrame.Angles(0, 0, math.pi / 2),
+			at(36.4, 1.8, -2 + i * 2.4) * CFrame.Angles(0, 0, math.pi / 2),
 			color,
 			Enum.Material.Metal,
 			{
@@ -181,7 +208,8 @@ local function buildPlot(parent, index, pivot)
 			Vector3.new(0.3, 2.4 + (i % 2) * 0.8, 0.15),
 			at(-30 + i * 2.5, 9, 37.75),
 			Color3.fromRGB(60, 60, 65),
-			Enum.Material.Metal
+			Enum.Material.Metal,
+			{ CanCollide = false }
 		)
 	end
 	local shopSign = part(props, "ShopSign", Vector3.new(22, 3.2, 0.2), at(0, 14.5, 37.9), Color3.fromRGB(30, 30, 35))
@@ -248,6 +276,11 @@ local function setupLighting()
 
 	local baseplate = workspace:FindFirstChild("Baseplate")
 	if baseplate then
+		-- Ground must reach the boundary wall at 600; keep the top surface where it is.
+		local top = baseplate.Position.Y + baseplate.Size.Y / 2
+		baseplate.Size =
+			Vector3.new(math.max(baseplate.Size.X, 1400), baseplate.Size.Y, math.max(baseplate.Size.Z, 1400))
+		baseplate.Position = Vector3.new(0, top - baseplate.Size.Y / 2, 0)
 		baseplate.Material = Enum.Material.Grass
 		baseplate.Color = Color3.fromRGB(78, 112, 62)
 		for _, texture in baseplate:GetChildren() do
