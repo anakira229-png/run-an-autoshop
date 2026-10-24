@@ -101,7 +101,8 @@ Potential additions, not a release checklist: more repair types, additional car 
 - Blender MCP is configured in VS Code's user-level MCP settings for reuse across workspaces, using an absolute uvx executable path and localhost port 9876, with safe mode enabled and telemetry disabled. The configured process passed MCP initialization, tool discovery (9 tools), and a read-only scene query against Blender 5.2. No scene changes were made. VS Code may still require the new server to be started or trusted before its tools appear in chat.
 - Studio place: "Run An Autoshop!" (placeId 113428819245695), published privately. It started as an empty baseplate. Roblox Studio MCP is connected and was used for building and playtesting.
 - Toolchain: Rokit pins Rojo 7.7.1, StyLua 2.6.0, Selene 0.32.0, and Wally 0.3.2 (`rokit.toml`). Wally installs Fusion 0.3.0 (`wally.toml`, `wally.lock`; `Packages/` is ignored by Git). Rojo syncs `src/shared` to `ReplicatedStorage.RunAutoshop`, `Packages` to `ReplicatedStorage.Packages`, `src/server` to `ServerScriptService.RunAutoshop`, `tools` to `ServerStorage.RunAutoshopTools`, and `src/client` to `StarterPlayerScripts.RunAutoshop`. Commands are in the README.
-- Map and templates live in Studio (`Workspace.RunAutoshopMap`, `ServerStorage.RunAutoshopAssets`) and are reproducible with `require(game.ServerStorage.RunAutoshopTools.BuildMap:Clone())()` in edit mode. Rerunning it replaces those two folders and restyles Lighting (evening, atmosphere, color grade) and the Baseplate (grass).
+- Map and templates live in Studio and are reproducible in Edit mode: `require(game.ServerStorage.RunAutoshopTools.BuildAssets:Clone())()` rebuilds `ServerStorage.RunAutoshopAssets` (Art), then `require(game.ServerStorage.RunAutoshopTools.BuildMap:Clone())()` rebuilds `Workspace.RunAutoshopMap` and restyles Lighting and the Baseplate (World). Map-dependent gameplay data (test-drive loop, call-out spots) lives in `src/shared/WorldData.luau`.
+- Work is split across four agents (Gameplay lead, UI, Art, World) defined in `.github/agents/`. Ownership, contracts, the Studio status line, and cross-agent requests are in `docs/COORDINATION.md`.
 - Lighting `Technology` cannot be set from scripts; set it to Future manually in the Lighting properties.
 - Server code: `PlayerData` (load/save, money, inventory, tiers), `Plots` (assignment, owner-only prompts), `WorkSession` (work-view sessions and validated part clicks), `Spin` (server-timed spin minigame), `RepairJobs` (owner-agnostic jobs with click targets, shop customer cycle, test drive), `Chassis` (shared constraint car rig), `Route` (server-validated checkpoints), `Callouts` (roadside offers and jobs), `Shop` (menu purchases, tiers, tool upgrade), `PersonalCar` (garage installs, assembly, tier stats), `Effects` (3D sounds, sparks). Shared: `Config`, `Remotes`, `Sounds`, `PartUtil` (moves a part together with its attached children). Client: `Store` (Fusion state fed by remotes), `UI/Kit` and `UI/App` (Fusion UI), `WorkView` (camera, click raycasts, highlights), `SpinGame`, `Beacons`, `Effects`, `CarAudio`, and hiding prompts owned by other players.
 - Studio-only test hook: setting the `DebugJobType` attribute on Workspace to `FlatTire` or `Dent` forces that job type. It's ignored outside Studio; remove it after testing.
@@ -145,7 +146,7 @@ Not yet verified:
 
 ## Next Session
 
-1. Read this brief and the repository instructions.
-2. Run `wally install` if `Packages/` is missing, then `rojo serve`, and connect the Rojo plugin in Studio.
-3. Continue Plan v2 with Phase 4: Blender models, the FBX import pipeline, and the engine-bay jobs. Then Phase 5, the district map.
-4. Manually playtest the unverified items above and tune `Config.luau`.
+1. Read this brief, the repository instructions, and `docs/COORDINATION.md`. Pick your agent (Gameplay, UI, Art, or World).
+2. Run `wally install` if `Packages/` is missing. Gameplay runs `rojo serve`; the user connects the Rojo plugin in Studio.
+3. Work the open requests for your agent. Plan v2 continues: Art handles models and import (sedan v2 is exported and waiting for import), Gameplay the engine-bay jobs, World the district map, and UI polish.
+4. Gameplay playtests integrated work and keeps the verified and unverified lists current.

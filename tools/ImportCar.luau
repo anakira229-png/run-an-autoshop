@@ -86,6 +86,9 @@ return function(modelName)
 		old:Destroy()
 	end
 	source.Parent = meshes
-	table.insert(report, string.format("stored %d parts in ServerStorage.RunAutoshopMeshes.%s", #source:GetChildren(), modelName))
+	table.insert(
+		report,
+		string.format("stored %d parts in ServerStorage.RunAutoshopMeshes.%s", #source:GetChildren(), modelName)
+	)
 	return table.concat(report, "\n")
 end

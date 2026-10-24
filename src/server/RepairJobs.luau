@@ -7,6 +7,7 @@ local Config = require(ReplicatedStorage.RunAutoshop.Config)
 local PartUtil = require(ReplicatedStorage.RunAutoshop.PartUtil)
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
 local Sounds = require(ReplicatedStorage.RunAutoshop.Sounds)
+local WorldData = require(ReplicatedStorage.RunAutoshop.WorldData)
 local Chassis = require(script.Parent.Chassis)
 local Effects = require(script.Parent.Effects)
 local PlayerData = require(script.Parent.PlayerData)
@@ -277,7 +278,7 @@ local function depart(state)
 end
 
 local function testDriveRoute(plot)
-	local corners = Config.TestDrive.RingCorners
+	local corners = WorldData.TestDriveLoop
 	local start = Plots.marker(plot, "In3").Position
 	local nearest = 1
 	for i, corner in corners do

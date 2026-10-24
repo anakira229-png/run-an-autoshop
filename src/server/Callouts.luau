@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.RunAutoshop.Config)
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
+local WorldData = require(ReplicatedStorage.RunAutoshop.WorldData)
 local RepairJobs = require(script.Parent.RepairJobs)
 
 local cfg = Config.Callouts
@@ -124,7 +125,7 @@ local function update()
 	for player, due in nextOffer do
 		if now >= due and not offers[player] and not calls[player] and player:GetAttribute("CarReady") then
 			local free = {}
-			for _, spot in cfg.Spots do
+			for _, spot in WorldData.CalloutSpots do
 				if not spotTaken(spot) then
 					table.insert(free, spot)
 				end

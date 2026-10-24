@@ -116,30 +116,14 @@ return {
 		OutOfCarLimit = 10,
 		TipBase = 15,
 		TipPerSecondLeft = 0.5,
-		RingCorners = {
-			Vector3.new(-120, 0.2, -120),
-			Vector3.new(120, 0.2, -120),
-			Vector3.new(120, 0.2, 120),
-			Vector3.new(-120, 0.2, 120),
-		},
 	},
 
+	-- Spawn spots live in WorldData.CalloutSpots.
 	Callouts = {
 		FirstDelay = 45,
 		Interval = 75,
 		OfferTime = 20,
 		ExpireTime = 240,
 		PayoutMultiplier = 2,
-		-- Road shoulders on the outer ring; yaw in degrees is the car's heading.
-		Spots = {
-			{ Name = "South Street", Position = Vector3.new(-75, 0.2, -128), Yaw = 90 },
-			{ Name = "South Street", Position = Vector3.new(70, 0.2, -128), Yaw = -90 },
-			{ Name = "North Street", Position = Vector3.new(-60, 0.2, 128), Yaw = 90 },
-			{ Name = "North Street", Position = Vector3.new(85, 0.2, 128), Yaw = -90 },
-			{ Name = "West Avenue", Position = Vector3.new(-128, 0.2, -50), Yaw = 0 },
-			{ Name = "West Avenue", Position = Vector3.new(-128, 0.2, 70), Yaw = 180 },
-			{ Name = "East Avenue", Position = Vector3.new(128, 0.2, -80), Yaw = 0 },
-			{ Name = "East Avenue", Position = Vector3.new(128, 0.2, 40), Yaw = 180 },
-		},
 	},
 }
