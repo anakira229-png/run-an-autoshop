@@ -100,7 +100,82 @@ local function buildPartTemplates(parent)
 	return folder
 end
 
+local MESH_PAINT = {
+	Body = true,
+	Roof = true,
+	Panel_Hood = true,
+	Panel_Left = true,
+	Panel_Right = true,
+	Pillar = true,
+	Mirror = true,
+}
+
+-- Solid looks per imported part name; anything unlisted gets the trim look.
+local MESH_LOOKS = {
+	Cabin = { Color3.fromRGB(45, 55, 65), Enum.Material.Glass, 0.15 },
+	Headlight = { Color3.fromRGB(255, 245, 210), Enum.Material.Neon },
+	Taillight = { Color3.fromRGB(200, 20, 20), Enum.Material.Neon },
+	Tire = { Color3.fromRGB(25, 25, 25), Enum.Material.SmoothPlastic },
+	Hub = { Color3.fromRGB(190, 190, 195), Enum.Material.Metal },
+}
+local TRIM_LOOK = { Color3.fromRGB(40, 40, 45), Enum.Material.SmoothPlastic }
+local DEFAULT_PAINT = Color3.fromRGB(70, 110, 170)
+
+-- Customer car from ServerStorage.RunAutoshopMeshes.<name> (see ImportCar), or nil if not imported.
+local function buildMeshCustomerCar(parent, parts, meshName)
+	local meshes = ServerStorage:FindFirstChild("RunAutoshopMeshes")
+	local source = meshes and meshes:FindFirstChild(meshName)
+	if not source then
+		return nil
+	end
+	local model = source:Clone()
+	model.Name = "CustomerCar"
+	local body = model.Body
+	for _, d in model:GetDescendants() do
+		if d:IsA("SurfaceAppearance") then
+			d:Destroy()
+		elseif d:IsA("BasePart") then
+			local paint = MESH_PAINT[d.Name] == true
+			d:SetAttribute("Paint", paint)
+			if paint then
+				d.Color = DEFAULT_PAINT
+				d.Material = Enum.Material.SmoothPlastic
+			else
+				local look = MESH_LOOKS[d.Name] or (d.Name:match("^Wheel_") and MESH_LOOKS.Tire) or TRIM_LOOK
+				d.Color = look[1]
+				d.Material = look[2]
+				d.Transparency = look[3] or 0
+			end
+			d.CanCollide = d == body
+			d.Anchored = true
+		end
+	end
+	for _, name in { "Wheel_FL", "Wheel_FR", "Wheel_RL", "Wheel_RR" } do
+		local wheel = model[name]
+		wheel.CustomPhysicalProperties = parts.Wheel.CustomPhysicalProperties
+		local hub = wheel:FindFirstChild("Hub")
+		if hub then
+			hub.Anchored = false
+			hub.CanCollide = false
+			hub.Massless = true
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = wheel
+			weld.Part1 = hub
+			weld.Parent = hub
+		end
+	end
+	model.PrimaryPart = body
+	model.WorldPivot = CFrame.new()
+	weldAll(model, body)
+	body.Anchored = true
+	model.Parent = parent
+	return model
+end
+
 local function buildCustomerCar(parent, parts)
+	if buildMeshCustomerCar(parent, parts, "Sedan") then
+		return
+	end
 	local model = Instance.new("Model")
 	model.Name = "CustomerCar"
 	local body = part(model, "Body", Vector3.new(6.4, 1.8, 13), CFrame.new(0, 2.5, 0), Color3.fromRGB(70, 110, 170))

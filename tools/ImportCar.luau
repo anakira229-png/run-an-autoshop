@@ -41,6 +41,9 @@ return function(modelName)
 	for _, d in source:GetChildren() do
 		if not d:IsA("BasePart") then
 			d:Destroy()
+		else
+			-- Blender duplicates arrive as "Headlight.001" or "Headlight_001".
+			d.Name = d.Name:gsub("[%._]%d%d%d$", "")
 		end
 	end
 
@@ -72,6 +75,15 @@ return function(modelName)
 
 	for _, part in source:GetChildren() do
 		part.Anchored = true
+	end
+	for _, name in WHEELS do
+		local hub = source:FindFirstChild(name .. "_Hub")
+		if hub then
+			hub.Name = "Hub"
+			hub.Parent = source[name]
+		else
+			table.insert(report, name .. " has no " .. name .. "_Hub")
+		end
 	end
 	source.PrimaryPart = body
 

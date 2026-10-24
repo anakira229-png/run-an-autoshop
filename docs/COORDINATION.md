@@ -33,7 +33,11 @@ Server to client: `SpinState`, `DentState`, `JobUpdate`, `JobResult`, `Notify`, 
 - Required direct children: `Body`, `Cabin`, `Roof`, `Panel_Hood`, `Panel_Left`, `Panel_Right`, `Wheel_FL`, `Wheel_FR`, `Wheel_RL`, `Wheel_RR`. Each wheel has a child `Hub` welded to it.
 - Wheels: axle along the wheel's local X, width about 1.2, radius 1.3 to 1.45.
 - Paintable parts have the attribute `Paint = true`; the server recolors them per customer.
-- Engine-bay names for the battery swap and oil change jobs: proposed `Battery`, `OilCap`, `EngineBlock`, and an openable `Panel_Hood`. Not final until Gameplay confirms.
+- Engine-bay parts (Art proposal, 2026-10-24; not final until Gameplay confirms): direct children of the car, welded to `Body`, not paintable, hidden under the closed hood.
+  - `EngineBlock`: static engine mesh filling the bay.
+  - `Battery`: same size as the `Parts.Battery` template (1.2 x 1 x 1), front-right of the bay, so the swap can replace it with the shelf part in place.
+  - `OilCap`: small cylinder on top of `EngineBlock`, clickable target for the oil change.
+  - `Panel_Hood` gets an Attachment `HoodHinge` on its rear edge (axis along local X) so the server can rotate the hood open about it.
 
 ### Shop plots (producer: World; consumer: Gameplay)
 
@@ -64,7 +68,8 @@ In Edit mode, in this order:
 
 Format: `- [open|done] From → To: request (date)`
 
-- [open] Gameplay → Art: import the sedan v2 (`assets/models/Sedan.fbx`, needs the user to run Studio's Import 3D with File dimensions = Studs), convert it with `ImportCar`, and make `BuildAssets` build `CustomerCar` from `RunAutoshopMeshes.Sedan` when present (2026-10-24)
-- [open] Gameplay → Art: propose final engine-bay part names for the battery swap and oil change jobs (2026-10-24)
+- [open] Gameplay → Art: import the sedan v2 (`assets/models/Sedan.fbx`, needs the user to run Studio's Import 3D with File dimensions = Studs), convert it with `ImportCar`, and make `BuildAssets` build `CustomerCar` from `RunAutoshopMeshes.Sedan` when present (2026-10-24). Art: `BuildAssets` and `ImportCar` support done; waiting on the user's Studio import.
+- [done] Gameplay → Art: propose final engine-bay part names for the battery swap and oil change jobs (2026-10-24). See the customer car contract.
+- [open] Art → Gameplay: confirm or change the engine-bay names in the customer car contract; Art will then model the bay into the sedan (2026-10-24)
 - [open] Gameplay → World: plan the multi-district city and keep `WorldData` in sync with the map (2026-10-24)
 - [open] Gameplay → UI: polish work-view camera feel, rebuild the spin ring in Fusion, improve garage visuals (2026-10-24)
