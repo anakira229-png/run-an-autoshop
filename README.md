@@ -2,7 +2,7 @@
 
 Own an auto shop, repair customer cars, build your own car, and drive around a city in Roblox.
 
-The game favors quick, satisfying arcade interactions over detailed mechanical simulation. **Run an Autoshop** is the working title, not a cleared commercial name.
+The game favors quick, satisfying arcade interactions over detailed mechanical simulation.
 
 ## Project Status
 
