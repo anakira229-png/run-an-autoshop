@@ -130,11 +130,6 @@ local function buildPlot(parent, index, pivot)
 	lamp(Vector3.new(1.2, 0.3, 16), at(18, 17.9, 8), 22)
 	lamp(Vector3.new(40, 0.3, 1.2), at(0, 17.9, 31), 20)
 
-	local liftBlue = Color3.fromRGB(40, 80, 160)
-	for _, x in { -23.6, -12.4 } do
-		part(props, "LiftPost", Vector3.new(1, 9, 1), at(x, 4.7, 8), liftBlue, Enum.Material.Metal)
-	end
-	part(props, "LiftBeam", Vector3.new(12.2, 0.8, 1.2), at(-18, 9.6, 8), liftBlue, Enum.Material.Metal)
 	part(
 		props,
 		"OilStain",
