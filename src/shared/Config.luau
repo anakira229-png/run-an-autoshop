@@ -78,4 +78,62 @@ return {
 		SteerSign = -1,
 		ResetCooldown = 3,
 	},
+
+	-- Tier 1 is the stock part; buying a tier requires the previous one and the base part installed.
+	Tiers = {
+		Names = { "Stock", "Sport", "Race" },
+		Colors = { nil, Color3.fromRGB(200, 45, 40), Color3.fromRGB(230, 180, 40) },
+		Engine = {
+			{ MaxSpeed = 60 },
+			{ MaxSpeed = 72, Price = 400 },
+			{ MaxSpeed = 86, Price = 900 },
+		},
+		Transmission = {
+			{ MotorAcceleration = 20 },
+			{ MotorAcceleration = 28, Price = 250 },
+			{ MotorAcceleration = 38, Price = 600 },
+		},
+		-- Roblox clamps friction to 2.
+		Wheel = {
+			{ Friction = 1.4, HighSpeedSteerFactor = 0.5 },
+			{ Friction = 1.7, HighSpeedSteerFactor = 0.58, Price = 200 },
+			{ Friction = 2, HighSpeedSteerFactor = 0.66, Price = 500 },
+		},
+	},
+
+	TestDrive = {
+		OfferTime = 15,
+		TimeLimit = 75,
+		CheckpointRadius = 16,
+		ParkRadius = 8,
+		ParkMaxSpeed = 4,
+		OutOfCarLimit = 10,
+		TipBase = 15,
+		TipPerSecondLeft = 0.5,
+		RingCorners = {
+			Vector3.new(-120, 0.2, -120),
+			Vector3.new(120, 0.2, -120),
+			Vector3.new(120, 0.2, 120),
+			Vector3.new(-120, 0.2, 120),
+		},
+	},
+
+	Callouts = {
+		FirstDelay = 45,
+		Interval = 75,
+		OfferTime = 20,
+		ExpireTime = 240,
+		PayoutMultiplier = 2,
+		-- Road shoulders on the outer ring; yaw in degrees is the car's heading.
+		Spots = {
+			{ Name = "South Street", Position = Vector3.new(-75, 0.2, -128), Yaw = 90 },
+			{ Name = "South Street", Position = Vector3.new(70, 0.2, -128), Yaw = -90 },
+			{ Name = "North Street", Position = Vector3.new(-60, 0.2, 128), Yaw = 90 },
+			{ Name = "North Street", Position = Vector3.new(85, 0.2, 128), Yaw = -90 },
+			{ Name = "West Avenue", Position = Vector3.new(-128, 0.2, -50), Yaw = 0 },
+			{ Name = "West Avenue", Position = Vector3.new(-128, 0.2, 70), Yaw = 180 },
+			{ Name = "East Avenue", Position = Vector3.new(128, 0.2, -80), Yaw = 0 },
+			{ Name = "East Avenue", Position = Vector3.new(128, 0.2, 40), Yaw = 180 },
+		},
+	},
 }

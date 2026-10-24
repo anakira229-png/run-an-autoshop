@@ -4,6 +4,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
+local Effects = require(script.Parent.Effects)
 
 local SEND_INTERVAL = 0.1
 local RING_SIZE = 240
@@ -99,14 +100,21 @@ local accumulated = 0
 local window = 0
 local rate = 0
 local flashUntil = 0
+local wrench = Effects.loop("Wrench", 0.5)
 
-Remotes.SpinState.OnClientEvent:Connect(function(newState)
+Remotes.SpinState.OnClientEvent:Connect(function(newState, completed)
 	if newState and state and newState.slips > state.slips then
 		flashUntil = os.clock() + 0.4
+		Effects.play("Slip", 0.7)
+		Effects.shake(1.5, 0.2)
+	end
+	if completed then
+		Effects.play("StepDone", 0.5)
 	end
 	state = newState
 	root.Visible = state ~= nil
 	if not state then
+		wrench:Stop()
 		holding = false
 		lastAngle = nil
 		accumulated = 0
@@ -169,6 +177,14 @@ RunService.RenderStepped:Connect(function(dt)
 	speedFill.Size = UDim2.fromScale(fraction, 1)
 	speedFill.BackgroundColor3 = rate > state.slipRate and BAD or GOOD
 	ringStroke.Color = os.clock() < flashUntil and BAD or RING
+
+	local working = holding and rate > 30 and rate <= state.slipRate
+	if working and not wrench.IsPlaying then
+		wrench:Play()
+	elseif not working and wrench.IsPlaying then
+		wrench:Stop()
+	end
+	wrench.PlaybackSpeed = 0.85 + math.clamp(rate / state.slipRate, 0, 1) * 0.35
 end)
 
 return gui

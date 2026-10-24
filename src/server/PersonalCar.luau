@@ -1,10 +1,10 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
 local Config = require(ReplicatedStorage.RunAutoshop.Config)
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
+local Chassis = require(script.Parent.Chassis)
 local PlayerData = require(script.Parent.PlayerData)
 local Plots = require(script.Parent.Plots)
 local Spin = require(script.Parent.Spin)
@@ -25,11 +25,31 @@ local function weld(part0, part1)
 	w.Parent = part1
 end
 
-local function attachment(parent, cframe)
-	local a = Instance.new("Attachment")
-	a.CFrame = cframe
-	a.Parent = parent
-	return a
+local function tierStats(player)
+	local overrides = {}
+	for partType in Config.Parts do
+		local tiers = Config.Tiers[partType]
+		if tiers then
+			for k, v in tiers[PlayerData.tier(player, partType)] do
+				if k ~= "Price" then
+					overrides[k] = v
+				end
+			end
+		end
+	end
+	return Chassis.stats(overrides)
+end
+
+local function paintTiers(model, player)
+	for _, part in model.Installed:GetChildren() do
+		local partType = part:GetAttribute("PartType")
+		if Config.Tiers[partType] then
+			local target = partType == "Wheel" and part:FindFirstChild("Hub") or part
+			local template = assets.Parts[partType]
+			local original = partType == "Wheel" and template.Hub.Color or template.Color
+			target.Color = Config.Tiers.Colors[PlayerData.tier(player, partType)] or original
+		end
+	end
 end
 
 local function isComplete(data)
@@ -62,102 +82,20 @@ end
 
 local function assemble(entry, player)
 	local model = entry.model
-	local frame = model.Frame
-	local car = Config.Car
-	local motors, servos = {}, {}
-
+	local wheels = {}
 	for _, slotName in WHEEL_SLOTS do
-		local wheel = model.Installed[slotName]
-		wheel:FindFirstChild("WeldConstraint"):Destroy()
-		local offset = frame.CFrame:ToObjectSpace(wheel.CFrame).Position
-		local noCollide = Instance.new("NoCollisionConstraint")
-		noCollide.Part0 = frame
-		noCollide.Part1 = wheel
-		noCollide.Parent = wheel
-		local wheelAttachment = attachment(wheel, CFrame.new())
-
-		local hinge = Instance.new("HingeConstraint")
-		hinge.Attachment1 = wheelAttachment
-		if FRONT[slotName] then
-			local knuckle = Instance.new("Part")
-			knuckle.Name = "Knuckle"
-			knuckle.Size = Vector3.new(1, 1, 1)
-			knuckle.Transparency = 1
-			knuckle.CanCollide = false
-			knuckle.CanQuery = false
-			knuckle.CanTouch = false
-			knuckle.CFrame = frame.CFrame * CFrame.new(offset)
-			knuckle.Parent = model
-			-- Rotating the attachments makes the hinge axis point up for steering.
-			local up = CFrame.Angles(0, 0, math.pi / 2)
-			local servo = Instance.new("HingeConstraint")
-			servo.Attachment0 = attachment(frame, CFrame.new(offset) * up)
-			servo.Attachment1 = attachment(knuckle, up)
-			servo.ActuatorType = Enum.ActuatorType.Servo
-			servo.ServoMaxTorque = 1e6
-			servo.AngularSpeed = 6
-			servo.Parent = knuckle
-			table.insert(servos, servo)
-			hinge.Attachment0 = attachment(knuckle, CFrame.new())
-		else
-			hinge.Attachment0 = attachment(frame, CFrame.new(offset))
-			hinge.ActuatorType = Enum.ActuatorType.Motor
-			hinge.MotorMaxTorque = car.BrakeTorque
-			hinge.MotorMaxAcceleration = car.MotorAcceleration
-			hinge.AngularVelocity = 0
-			table.insert(motors, hinge)
-		end
-		hinge.Parent = wheel
+		table.insert(wheels, { part = model.Installed[slotName], front = FRONT[slotName] == true })
 	end
-
-	local seat = model.Installed.Seat
-	seat.Disabled = false
-	frame.Anchored = false
-
-	table.insert(
-		entry.conns,
-		seat:GetPropertyChangedSignal("Occupant"):Connect(function()
-			local humanoid = seat.Occupant
-			if not humanoid then
-				pcall(frame.SetNetworkOwnershipAuto, frame)
-				return
-			end
-			if Players:GetPlayerFromCharacter(humanoid.Parent) ~= player then
-				local seatWeld = seat:FindFirstChild("SeatWeld")
-				if seatWeld then
-					seatWeld:Destroy()
-				end
-				humanoid.Sit = false
-				return
-			end
-			pcall(frame.SetNetworkOwner, frame, player)
-		end)
-	)
-
-	table.insert(
-		entry.conns,
-		RunService.Heartbeat:Connect(function()
-			local throttle, steer = 0, 0
-			if seat.Occupant then
-				throttle, steer = seat.ThrottleFloat, seat.SteerFloat
-			end
-			for _, motor in motors do
-				if throttle ~= 0 then
-					local top = throttle > 0 and car.MaxSpeed or car.ReverseSpeed
-					motor.AngularVelocity = car.DriveSign * throttle * top / car.WheelRadius
-					motor.MotorMaxTorque = car.MotorTorque
-				else
-					motor.AngularVelocity = 0
-					motor.MotorMaxTorque = car.BrakeTorque
-				end
-			end
-			local speedFraction = math.clamp(frame.AssemblyLinearVelocity.Magnitude / car.MaxSpeed, 0, 1)
-			local steerScale = 1 - (1 - car.HighSpeedSteerFactor) * speedFraction
-			for _, servo in servos do
-				servo.TargetAngle = car.SteerSign * steer * car.MaxSteerAngle * steerScale
-			end
-		end)
-	)
+	entry.chassis = Chassis.build({
+		root = model.Frame,
+		wheels = wheels,
+		seat = model.Installed.Seat,
+		driver = function()
+			return player
+		end,
+		stats = tierStats(player),
+	})
+	paintTiers(model, player)
 	player:SetAttribute("CarReady", true)
 end
 
@@ -202,12 +140,21 @@ function PersonalCar.despawn(player)
 	local entry = cars[player]
 	cars[player] = nil
 	if entry then
-		for _, conn in entry.conns do
-			conn:Disconnect()
+		if entry.chassis then
+			entry.chassis.destroy()
 		end
 		entry.model:Destroy()
 	end
 	player:SetAttribute("CarReady", false)
+end
+
+-- Applies current tiers to a built car without moving it.
+function PersonalCar.refresh(player)
+	local entry = cars[player]
+	if entry and entry.chassis then
+		entry.chassis.setStats(tierStats(player))
+		paintTiers(entry.model, player)
+	end
 end
 
 function PersonalCar.spawn(player)
@@ -224,7 +171,7 @@ function PersonalCar.spawn(player)
 	installed.Parent = model
 	model:PivotTo(Plots.marker(plot, "CarPad"))
 
-	local entry = { model = model, conns = {} }
+	local entry = { model = model }
 	cars[player] = entry
 	for _, slot in Config.Slots do
 		if data.Installed[slot.Name] then

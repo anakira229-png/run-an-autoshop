@@ -1,7 +1,19 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local NAMES = { "SpinInput", "SpinState", "DentState", "JobUpdate", "JobResult", "Notify", "ResetCar" }
+local NAMES = {
+	"SpinInput",
+	"SpinState",
+	"DentState",
+	"JobUpdate",
+	"JobResult",
+	"Notify",
+	"ResetCar",
+	"RouteState",
+	"CalloutOffer",
+	"CalloutRespond",
+	"CalloutState",
+}
 local FOLDER_NAME = "RunAutoshopRemotes"
 
 local folder

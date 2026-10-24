@@ -67,8 +67,8 @@ function Plots.isNear(player, position, maxDistance)
 	return root ~= nil and (root.Position - position).Magnitude <= maxDistance
 end
 
--- Creates a prompt that only fires its callback for the plot owner.
-function Plots.prompt(plot, parent, actionText, objectText, holdDuration, callback)
+-- Creates a prompt whose callback only fires for the player returned by getOwner.
+function Plots.ownerPrompt(getOwner, parent, actionText, objectText, holdDuration, callback)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = actionText
 	prompt.ObjectText = objectText or ""
@@ -76,14 +76,20 @@ function Plots.prompt(plot, parent, actionText, objectText, holdDuration, callba
 	prompt.MaxActivationDistance = Config.InteractDistance
 	prompt.RequiresLineOfSight = false
 	prompt.Triggered:Connect(function(player)
-		if owners[plot] ~= player then
-			Remotes.Notify:FireClient(player, "This isn't your shop.")
+		if getOwner() ~= player then
+			Remotes.Notify:FireClient(player, "This job isn't yours.")
 			return
 		end
 		callback(player)
 	end)
 	prompt.Parent = parent
 	return prompt
+end
+
+function Plots.prompt(plot, parent, actionText, objectText, holdDuration, callback)
+	return Plots.ownerPrompt(function()
+		return owners[plot]
+	end, parent, actionText, objectText, holdDuration, callback)
 end
 
 function Plots.teleportHome(player)

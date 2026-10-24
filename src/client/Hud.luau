@@ -4,6 +4,7 @@ local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.RunAutoshop.Config)
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
+local Effects = require(script.Parent.Effects)
 
 local player = Players.LocalPlayer
 
@@ -142,7 +143,71 @@ local dentPanel = panel({
 	Parent = gui,
 }, { dentLabel })
 
+local bannerScale = make("UIScale", { Scale = 1 })
+local bannerStars = label({
+	Size = UDim2.new(1, 0, 0, 56),
+	Font = Enum.Font.GothamBlack,
+	TextSize = 54,
+	TextColor3 = ACCENT,
+	TextStrokeTransparency = 0.3,
+	TextXAlignment = Enum.TextXAlignment.Center,
+})
+local bannerText = label({
+	Position = UDim2.fromOffset(0, 58),
+	Size = UDim2.new(1, 0, 0, 30),
+	Font = Enum.Font.GothamBold,
+	TextSize = 24,
+	TextStrokeTransparency = 0.3,
+	TextXAlignment = Enum.TextXAlignment.Center,
+})
+local banner = make("Frame", {
+	Name = "ResultBanner",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.32),
+	Size = UDim2.fromOffset(420, 90),
+	BackgroundTransparency = 1,
+	Visible = false,
+	Parent = gui,
+}, { bannerScale, bannerStars, bannerText })
+
 gui.Parent = player:WaitForChild("PlayerGui")
+
+local function moneyPopup(delta)
+	local popup = label({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 96),
+		Size = UDim2.fromOffset(200, 30),
+		Font = Enum.Font.GothamBold,
+		TextSize = 26,
+		TextColor3 = delta > 0 and GOOD or Color3.fromRGB(240, 90, 80),
+		TextStrokeTransparency = 0.4,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = (delta > 0 and "+$" or "-$") .. math.abs(delta),
+		Parent = gui,
+	})
+	local info = TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local goal = delta > 0 and UDim2.new(0.5, 0, 0, 40) or UDim2.new(0.5, 0, 0, 140)
+	TweenService:Create(popup, info, { Position = goal, TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	task.delay(1.3, popup.Destroy, popup)
+	money.TextSize = 38
+	TweenService:Create(money, TweenInfo.new(0.3, Enum.EasingStyle.Back), { TextSize = 30 }):Play()
+end
+
+local bannerToken = 0
+local function showBanner(stars, text)
+	bannerToken += 1
+	local token = bannerToken
+	bannerStars.Text = string.rep("★", stars) .. string.rep("☆", 3 - stars)
+	bannerText.Text = text
+	banner.Visible = true
+	bannerScale.Scale = 0.4
+	TweenService:Create(bannerScale, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	task.delay(2.5, function()
+		if token == bannerToken then
+			banner.Visible = false
+		end
+	end)
+end
 
 local function refreshMoney()
 	money.Text = "$" .. (player:GetAttribute("Money") or 0)
@@ -152,6 +217,10 @@ local function refreshBuild()
 	for _, slot in Config.Slots do
 		local row = buildRows[slot.Name]
 		local partLabel = Config.Parts[slot.PartType].Label
+		local tier = player:GetAttribute("Tier_" .. slot.PartType)
+		if tier and tier > 1 then
+			partLabel = Config.Tiers.Names[tier] .. " " .. partLabel
+		end
 		local name = slot.PartType == "Wheel" and partLabel .. " " .. slot.Name:sub(-2) or partLabel
 		if player:GetAttribute("Installed_" .. slot.Name) then
 			row.Text = "[x] " .. name
@@ -189,8 +258,15 @@ local function showToast(text, color)
 	end)
 end
 
+local lastMoney = player:GetAttribute("Money")
 player.AttributeChanged:Connect(function(name)
 	if name == "Money" then
+		local current = player:GetAttribute("Money")
+		if lastMoney and current and current ~= lastMoney then
+			moneyPopup(current - lastMoney)
+			Effects.play(current > lastMoney and "Cash" or "Coins", 0.6)
+		end
+		lastMoney = current
 		refreshMoney()
 	else
 		refreshBuild()
@@ -217,15 +293,24 @@ Remotes.JobUpdate.OnClientEvent:Connect(function(job)
 end)
 
 Remotes.JobResult.OnClientEvent:Connect(function(result)
-	local stars = string.rep("*", result.stars) .. string.rep("-", 3 - result.stars)
-	showToast(string.format("%s fixed!  [%s]  +$%d", result.label, stars, result.payout), GOOD)
+	showBanner(result.stars, string.format("%s fixed!  +$%d", result.label, result.payout))
 end)
 
+local lastHits, lastMisses = 0, 0
 Remotes.DentState.OnClientEvent:Connect(function(state)
 	dentPanel.Visible = state ~= nil
 	if state then
+		if state.hits > lastHits then
+			Effects.shake(1.2, 0.15)
+		elseif state.misses > lastMisses then
+			dentLabel.TextColor3 = Color3.fromRGB(240, 90, 80)
+			TweenService:Create(dentLabel, TweenInfo.new(0.4), { TextColor3 = TEXT }):Play()
+		end
+		lastHits, lastMisses = state.hits, state.misses
 		dentLabel.Text =
 			string.format("Click the glowing dents!  %d/%d   Missed: %d", state.hits, state.required, state.misses)
+	else
+		lastHits, lastMisses = 0, 0
 	end
 end)
 

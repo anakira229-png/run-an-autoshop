@@ -2,21 +2,24 @@ local Players = game:GetService("Players")
 
 require(script.Hud)
 require(script.SpinGame)
+require(script.CarAudio)
+require(script.Missions)
 
 local player = Players.LocalPlayer
 local plots = workspace:WaitForChild("RunAutoshopMap"):WaitForChild("Plots")
+local callouts = workspace:WaitForChild("RunAutoshopCallouts")
 
--- Prompts on other players' plots are hidden locally; the server still rejects non-owners.
-local function plotOf(instance)
+-- Prompts owned by other players are hidden locally; the server still rejects non-owners.
+local function ownerOf(instance)
 	local current = instance
-	while current and current.Parent ~= plots do
+	while current and current:GetAttribute("OwnerUserId") == nil do
 		current = current.Parent
 	end
 	return current
 end
 
-local function apply(prompt, plot)
-	prompt.Enabled = plot:GetAttribute("OwnerUserId") == player.UserId
+local function apply(prompt, owned)
+	prompt.Enabled = owned:GetAttribute("OwnerUserId") == player.UserId
 end
 
 local function watchPlot(plot)
@@ -34,16 +37,21 @@ for _, plot in plots:GetChildren() do
 end
 plots.ChildAdded:Connect(watchPlot)
 
-plots.DescendantAdded:Connect(function(d)
-	if d:IsA("ProximityPrompt") then
-		local plot = plotOf(d)
-		if plot then
-			apply(d, plot)
+for _, root in { plots, callouts } do
+	root.DescendantAdded:Connect(function(d)
+		if d:IsA("ProximityPrompt") then
+			local owned = ownerOf(d)
+			if owned then
+				apply(d, owned)
+			end
 		end
-	end
-end)
-for _, d in plots:GetDescendants() do
-	if d:IsA("ProximityPrompt") then
-		apply(d, plotOf(d))
+	end)
+	for _, d in root:GetDescendants() do
+		if d:IsA("ProximityPrompt") then
+			local owned = ownerOf(d)
+			if owned then
+				apply(d, owned)
+			end
+		end
 	end
 end

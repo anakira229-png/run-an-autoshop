@@ -1,11 +1,16 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.RunAutoshop.Config)
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
+local Sounds = require(ReplicatedStorage.RunAutoshop.Sounds)
+local Chassis = require(script.Parent.Chassis)
+local Effects = require(script.Parent.Effects)
 local PlayerData = require(script.Parent.PlayerData)
 local Plots = require(script.Parent.Plots)
+local Route = require(script.Parent.Route)
 local Spin = require(script.Parent.Spin)
 
 local assets = ServerStorage:WaitForChild("RunAutoshopAssets")
@@ -21,7 +26,7 @@ local states = {}
 local RepairJobs = {}
 
 local function alive(state)
-	return states[state.plot] == state
+	return state.active == true
 end
 
 local function weld(part0, part1)
@@ -84,7 +89,7 @@ local function showNuts(nuts, fraction)
 end
 
 local function sendStep(state, text)
-	local owner = Plots.owner(state.plot)
+	local owner = state.owner()
 	if owner then
 		Remotes.JobUpdate:FireClient(owner, { label = state.job.Label, payout = state.job.Payout, step = text })
 	end
@@ -117,7 +122,7 @@ end
 
 local function holdStep(state, part, actionText, hint, onDone)
 	sendStep(state, hint)
-	state.prompt = Plots.prompt(state.plot, part, actionText, state.job.Label, 0.5, function(player)
+	state.prompt = Plots.ownerPrompt(state.owner, part, actionText, state.job.Label, 0.5, function(player)
 		if Spin.isBusy(player) or not state.prompt then
 			return
 		end
@@ -132,7 +137,7 @@ local function spinStep(state, part, actionText, hint, onProgress, onDone)
 		if not alive(state) then
 			return
 		end
-		state.prompt = Plots.prompt(state.plot, part, actionText, state.job.Label, 0, function(player)
+		state.prompt = Plots.ownerPrompt(state.owner, part, actionText, state.job.Label, 0, function(player)
 			if not state.prompt then
 				return
 			end
@@ -174,7 +179,7 @@ local function finish(state)
 		stars = 2
 	end
 	local payout = math.floor(state.job.Payout * Config.StarMultipliers[stars] + 0.5)
-	local owner = Plots.owner(state.plot)
+	local owner = state.owner()
 	if owner and PlayerData.addMoney(owner, payout) then
 		Remotes.JobUpdate:FireClient(owner, nil)
 		Remotes.JobResult:FireClient(owner, { label = state.job.Label, stars = stars, payout = payout })
@@ -200,9 +205,12 @@ local function finish(state)
 	sparkle:Emit(40)
 
 	task.wait(1.5)
-	if not alive(state) then
-		return
+	if alive(state) then
+		state.onFinished(state)
 	end
+end
+
+local function depart(state)
 	local plot = state.plot
 	local out1 = Plots.marker(plot, "Out1").Position
 	local out2 = Plots.marker(plot, "Out2").Position
@@ -212,10 +220,123 @@ local function finish(state)
 		and tweenTo(state, CFrame.lookAt(out2, out3))
 		and tweenTo(state, CFrame.lookAt(out3, out3 + (out3 - out2)))
 	if ok then
-		car:Destroy()
-		states[plot] = nil
-		task.delay(Config.CustomerDelay, RepairJobs.spawnCustomer, plot)
+		RepairJobs.endCustomer(state)
 	end
+end
+
+local function testDriveRoute(plot)
+	local corners = Config.TestDrive.RingCorners
+	local start = Plots.marker(plot, "In3").Position
+	local nearest = 1
+	for i, corner in corners do
+		if (corner - start).Magnitude < (corners[nearest] - start).Magnitude then
+			nearest = i
+		end
+	end
+	local points = {}
+	for i = 0, #corners - 1 do
+		table.insert(points, corners[(nearest - 1 + i) % #corners + 1])
+	end
+	table.insert(points, start)
+	return points
+end
+
+local function startTestDrive(state, player)
+	local car, body = state.car, state.car.Body
+	state.phase = "TestDrive"
+	local seat = Instance.new("VehicleSeat")
+	seat.Name = "DriverSeat"
+	seat.Size = Vector3.new(2, 0.6, 2)
+	seat.Transparency = 1
+	seat.CanCollide = false
+	seat.MaxSpeed = 0
+	seat.Torque = 0
+	seat.TurnSpeed = 0
+	seat.HeadsUpDisplay = false
+	seat.CFrame = body.CFrame * CFrame.new(-1.3, 1.2, 0.8)
+	weld(body, seat)
+	seat.Parent = car
+
+	local wheels = {}
+	for _, name in WHEELS do
+		table.insert(wheels, { part = car[name], front = name:sub(-2, -2) == "F" })
+	end
+	state.chassis = Chassis.build({
+		root = body,
+		wheels = wheels,
+		seat = seat,
+		driver = state.owner,
+		stats = Chassis.stats(),
+	})
+	Chassis.seat(state.chassis, player)
+	sendStep(state, "Drive through every checkpoint, then park back in the bay.")
+
+	local td = Config.TestDrive
+	Route.start(player, {
+		label = "Test drive",
+		root = body,
+		seat = seat,
+		points = testDriveRoute(state.plot),
+		park = {
+			position = Plots.marker(state.plot, "Bay").Position,
+			radius = td.ParkRadius,
+			maxSpeed = td.ParkMaxSpeed,
+		},
+		radius = td.CheckpointRadius,
+		timeLimit = td.TimeLimit,
+		outOfCarLimit = td.OutOfCarLimit,
+		onEnd = function(success, timeLeft)
+			if not alive(state) then
+				return
+			end
+			Chassis.eject(state.chassis)
+			local owner = state.owner()
+			if owner then
+				Remotes.JobUpdate:FireClient(owner, nil)
+				if success then
+					local tip = td.TipBase + math.floor(timeLeft * td.TipPerSecondLeft)
+					PlayerData.addMoney(owner, tip)
+					Remotes.Notify:FireClient(owner, "The customer loved the test drive! Tip: $" .. tip)
+				else
+					Remotes.Notify:FireClient(owner, "Test drive failed. No tip this time.")
+					Plots.teleportHome(owner)
+				end
+			end
+			RepairJobs.endCustomer(state)
+		end,
+	})
+end
+
+local function offerTestDrive(state)
+	local td = Config.TestDrive
+	local maxTip = td.TipBase + td.TimeLimit * td.TipPerSecondLeft
+	state.phase = "Offer"
+	sendStep(state, "Take the car for a test drive to earn a tip, or let the customer leave.")
+	state.prompt = Plots.ownerPrompt(
+		state.owner,
+		state.car.Body,
+		"Test drive",
+		"Tip up to $" .. maxTip,
+		0.3,
+		function(player)
+			if state.phase ~= "Offer" or Spin.isBusy(player) then
+				return
+			end
+			clearPrompt(state)
+			startTestDrive(state, player)
+		end
+	)
+	task.delay(td.OfferTime, function()
+		if alive(state) and state.phase == "Offer" then
+			clearPrompt(state)
+			local owner = state.owner()
+			if owner then
+				Remotes.JobUpdate:FireClient(owner, nil)
+			end
+			state.phase = "Leaving"
+			depart(state)
+		end
+	end)
 end
 
 local function runFlatTire(state)
@@ -226,18 +347,24 @@ local function runFlatTire(state)
 	end, function()
 		holdStep(state, wheel, "Remove wheel", "Pull off the flat wheel.", function()
 			local body = car.Body
-			local fitCFrame = body.CFrame * state.wheelOffset
 			wheel:FindFirstChild("WeldConstraint"):Destroy()
 			wheel.Anchored = true
 			wheel.FaultHighlight:Destroy()
 			wheel.Name = "OldWheel"
-			wheel.Parent = state.plot
+			wheel.Parent = car.Parent
 			state.oldWheel = wheel
 			local outward = body.CFrame:VectorToWorldSpace(Vector3.new(state.side, 0, 0))
 			local ground = car:GetPivot().Position.Y
 			local drop = CFrame.new(Vector3.new(wheel.Position.X, ground + 0.6, wheel.Position.Z) + outward * 3.5)
 				* CFrame.Angles(0, 0, math.pi / 2)
-			TweenService:Create(wheel, TweenInfo.new(0.4), { CFrame = drop }):Play()
+			TweenService:Create(wheel, TweenInfo.new(0.4, Enum.EasingStyle.Bounce), { CFrame = drop }):Play()
+			task.delay(0.3, Effects.sound, wheel, Sounds.WheelDrop, 0.7)
+
+			-- Sag toward the missing corner.
+			local level = car:GetPivot()
+			local front = math.sign(state.wheelOffset.Position.Z)
+			car:PivotTo(level * CFrame.Angles(math.rad(front * 1.5), 0, math.rad(-state.side * 2)))
+			local fitCFrame = body.CFrame * state.wheelOffset
 
 			local ghost = decor(
 				"WheelGhost",
@@ -251,6 +378,8 @@ local function runFlatTire(state)
 			ghost.Parent = car
 			holdStep(state, ghost, "Fit new wheel", "Fit a new wheel.", function()
 				ghost:Destroy()
+				car:PivotTo(level)
+				fitCFrame = body.CFrame * state.wheelOffset
 				local newWheel = assets.Parts.Wheel:Clone()
 				newWheel.Name = state.wheelName
 				newWheel.CFrame = fitCFrame
@@ -312,6 +441,7 @@ local function dentGame(state, player, retry)
 		detector:Destroy()
 		if hit then
 			table.remove(state.dents, table.find(state.dents, dent))
+			Effects.sound(panel, Sounds.DentPop, 0.8)
 			dent:Destroy()
 			state.dentHits += 1
 		else
@@ -337,7 +467,7 @@ local function runDent(state)
 			return
 		end
 		sendStep(state, "Hammer out the dents on the highlighted panel.")
-		state.prompt = Plots.prompt(state.plot, state.panel, "Hammer dents", state.job.Label, 0, function(player)
+		state.prompt = Plots.ownerPrompt(state.owner, state.panel, "Hammer dents", state.job.Label, 0, function(player)
 			if Spin.isBusy(player) or state.dentRunning or not state.prompt then
 				return
 			end
@@ -418,11 +548,16 @@ local function setupFault(state)
 	label.Parent = car.Body
 end
 
-function RepairJobs.spawnCustomer(plot)
-	if not active[plot] or states[plot] then
-		return
+function RepairJobs.randomJobType()
+	local forced = RunService:IsStudio() and workspace:GetAttribute("DebugJobType")
+	if forced and Config.Jobs[forced] then
+		return forced
 	end
-	local jobType = JOB_TYPES[math.random(#JOB_TYPES)]
+	return JOB_TYPES[math.random(#JOB_TYPES)]
+end
+
+-- Clones a customer car with a random paint job and the job's fault; caller positions and parents it.
+function RepairJobs.createJob(jobType, owner, job, onFinished)
 	local car = assets.CustomerCar:Clone()
 	local paint = Config.CustomerColors[math.random(#Config.CustomerColors)]
 	for _, d in car:GetDescendants() do
@@ -431,16 +566,61 @@ function RepairJobs.spawnCustomer(plot)
 		end
 	end
 	local state = {
-		plot = plot,
 		car = car,
 		jobType = jobType,
-		job = Config.Jobs[jobType],
+		job = job,
 		paint = paint,
 		phase = "Arriving",
 		misses = 0,
+		active = true,
+		owner = owner,
+		onFinished = onFinished,
 	}
-	states[plot] = state
 	setupFault(state)
+	return state
+end
+
+function RepairJobs.begin(state)
+	state.phase = "Active"
+	clearPrompt(state)
+	if state.jobType == "FlatTire" then
+		runFlatTire(state)
+	else
+		runDent(state)
+	end
+end
+
+function RepairJobs.cancel(state)
+	state.active = false
+	if state.chassis then
+		state.chassis.destroy()
+	end
+	state.car:Destroy()
+	if state.oldWheel then
+		state.oldWheel:Destroy()
+	end
+end
+
+-- Removes a shop customer's car and schedules the next one.
+function RepairJobs.endCustomer(state)
+	RepairJobs.cancel(state)
+	if states[state.plot] == state then
+		states[state.plot] = nil
+		task.delay(Config.CustomerDelay, RepairJobs.spawnCustomer, state.plot)
+	end
+end
+
+function RepairJobs.spawnCustomer(plot)
+	if not active[plot] or states[plot] then
+		return
+	end
+	local jobType = RepairJobs.randomJobType()
+	local state = RepairJobs.createJob(jobType, function()
+		return Plots.owner(plot)
+	end, Config.Jobs[jobType], offerTestDrive)
+	state.plot = plot
+	states[plot] = state
+	local car = state.car
 
 	local p1 = Plots.marker(plot, "In1").Position
 	local p2 = Plots.marker(plot, "In2").Position
@@ -455,6 +635,7 @@ function RepairJobs.spawnCustomer(plot)
 		return
 	end
 
+	Effects.sound(car.Body, Sounds.Horn, 0.5)
 	state.phase = "Waiting"
 	sendStep(state, "A customer is waiting. Accept the job at their car.")
 	state.prompt = Plots.prompt(
@@ -464,15 +645,8 @@ function RepairJobs.spawnCustomer(plot)
 		state.job.Label .. " - $" .. state.job.Payout,
 		0.3,
 		function()
-			if state.phase ~= "Waiting" then
-				return
-			end
-			state.phase = "Active"
-			clearPrompt(state)
-			if jobType == "FlatTire" then
-				runFlatTire(state)
-			else
-				runDent(state)
+			if state.phase == "Waiting" then
+				RepairJobs.begin(state)
 			end
 		end
 	)
@@ -488,10 +662,7 @@ function RepairJobs.stop(plot)
 	local state = states[plot]
 	states[plot] = nil
 	if state then
-		state.car:Destroy()
-		if state.oldWheel then
-			state.oldWheel:Destroy()
-		end
+		RepairJobs.cancel(state)
 	end
 end
 

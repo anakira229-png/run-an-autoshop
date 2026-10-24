@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 
 local Config = require(ReplicatedStorage.RunAutoshop.Config)
 local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
+local Effects = require(script.Parent.Effects)
 local PlayerData = require(script.Parent.PlayerData)
 local Plots = require(script.Parent.Plots)
 
@@ -35,10 +36,20 @@ function Spin.start(player, opts)
 		lastSlip = 0,
 		started = os.clock(),
 		opts = opts,
+		sparks = Effects.sparks(opts.anchor),
 	}
 	sessions[player] = session
+	session.sparkHolder = session.sparks.Parent
 	sendState(player, session)
 	return true
+end
+
+local function finish(player, session, completed)
+	sessions[player] = nil
+	session.sparkHolder:Destroy()
+	if player.Parent then
+		Remotes.SpinState:FireClient(player, nil, completed)
+	end
 end
 
 function Spin.cancel(player)
@@ -46,10 +57,7 @@ function Spin.cancel(player)
 	if not session then
 		return
 	end
-	sessions[player] = nil
-	if player.Parent then
-		Remotes.SpinState:FireClient(player, nil)
-	end
+	finish(player, session, false)
 	if session.opts.onCancel then
 		session.opts.onCancel()
 	end
@@ -82,12 +90,12 @@ local function onInput(player, degrees, dt)
 	-- Server-timed budget caps progress no matter what rate the client reports.
 	local budget = session.slipRate * Config.Spin.BudgetSlack * (now - session.started)
 	session.progress = math.min(session.progress + degrees, budget, session.required)
+	session.sparks:Emit(3)
 	if session.opts.onProgress then
 		session.opts.onProgress(session.progress / session.required)
 	end
 	if session.progress >= session.required then
-		sessions[player] = nil
-		Remotes.SpinState:FireClient(player, nil)
+		finish(player, session, true)
 		session.opts.onComplete(session.slips)
 	else
 		sendState(player, session)
@@ -111,7 +119,11 @@ function Spin.init()
 		end
 	end)
 	Players.PlayerRemoving:Connect(function(player)
-		sessions[player] = nil
+		local session = sessions[player]
+		if session then
+			sessions[player] = nil
+			session.sparkHolder:Destroy()
+		end
 	end)
 end
 

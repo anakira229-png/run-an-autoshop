@@ -6,6 +6,7 @@ local Remotes = require(ReplicatedStorage.RunAutoshop.Remotes)
 
 local store = DataStoreService:GetDataStore(Config.DataStoreName)
 local profiles = {}
+local changeListeners = {}
 
 local PlayerData = {}
 
@@ -14,7 +15,7 @@ local function key(player)
 end
 
 local function newData()
-	return { Version = 1, Money = Config.StartingMoney, Upgrades = {}, Inventory = {}, Installed = {} }
+	return { Version = 1, Money = Config.StartingMoney, Upgrades = {}, Inventory = {}, Installed = {}, Tiers = {} }
 end
 
 -- Copies only known fields so stale or malformed saves cannot inject unexpected state.
@@ -37,6 +38,12 @@ local function reconcile(saved)
 	end
 	for _, slot in Config.Slots do
 		data.Installed[slot.Name] = type(saved.Installed) == "table" and saved.Installed[slot.Name] == true or nil
+	end
+	for partType in Config.Parts do
+		local tier = type(saved.Tiers) == "table" and saved.Tiers[partType]
+		if Config.Tiers[partType] and type(tier) == "number" then
+			data.Tiers[partType] = math.clamp(math.floor(tier), 1, #Config.Tiers[partType])
+		end
 	end
 	return data
 end
@@ -64,12 +71,20 @@ local function mirror(player, data)
 	for _, slot in Config.Slots do
 		player:SetAttribute("Installed_" .. slot.Name, data.Installed[slot.Name] == true)
 	end
+	for partType in Config.Parts do
+		if Config.Tiers[partType] then
+			player:SetAttribute("Tier_" .. partType, data.Tiers[partType] or 1)
+		end
+	end
 end
 
 local function changed(player)
 	local profile = profiles[player]
 	profile.dirty = true
 	mirror(player, profile.data)
+	for _, listener in changeListeners do
+		task.spawn(listener, player)
+	end
 end
 
 function PlayerData.load(player)
@@ -82,6 +97,9 @@ function PlayerData.load(player)
 	local profile = { data = reconcile(ok and saved or nil), canSave = ok, dirty = false }
 	profiles[player] = profile
 	mirror(player, profile.data)
+	for _, listener in changeListeners do
+		task.spawn(listener, player)
+	end
 	if not ok then
 		warn("RunAutoshop: data load failed for", player.UserId, saved)
 		Remotes.Notify:FireClient(player, "Save data unavailable. Progress this session will not be saved.")
@@ -171,6 +189,20 @@ end
 function PlayerData.setUpgrade(player, name)
 	PlayerData.get(player).Upgrades[name] = true
 	changed(player)
+end
+
+function PlayerData.tier(player, partType)
+	local data = PlayerData.get(player)
+	return data and data.Tiers[partType] or 1
+end
+
+function PlayerData.setTier(player, partType, tier)
+	PlayerData.get(player).Tiers[partType] = tier
+	changed(player)
+end
+
+function PlayerData.onChanged(listener)
+	table.insert(changeListeners, listener)
 end
 
 function PlayerData.start()

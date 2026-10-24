@@ -3,15 +3,19 @@ local Players = game:GetService("Players")
 local PlayerData = require(script.PlayerData)
 local Plots = require(script.Plots)
 local Spin = require(script.Spin)
+local Route = require(script.Route)
 local RepairJobs = require(script.RepairJobs)
 local Shop = require(script.Shop)
 local PersonalCar = require(script.PersonalCar)
+local Callouts = require(script.Callouts)
 local Remotes = require(game:GetService("ReplicatedStorage").RunAutoshop.Remotes)
 
 PlayerData.start()
 Spin.init()
+Route.init()
 Shop.init()
 PersonalCar.init()
+Callouts.init()
 
 local function onPlayerAdded(player)
 	local plot = Plots.claim(player)
@@ -33,6 +37,7 @@ local function onPlayerAdded(player)
 	end
 	PersonalCar.spawn(player)
 	RepairJobs.start(plot)
+	Callouts.track(player)
 end
 
 local function onPlayerRemoving(player)
